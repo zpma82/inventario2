@@ -88,7 +88,7 @@ if ($method === 'GET' && $accion === 'exportar') {
         ];
 
         $json     = json_encode($backup, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        $filename = 'backup_inventaller_' . date('Ymd_His') . '.json';
+        $filename = 'backup_inventario2_' . date('Ymd_His') . '.json';
 
         // Sobreescribir TODOS los headers previos y forzar descarga
         header_remove();

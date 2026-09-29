@@ -4,9 +4,9 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- =============================================================
 -- INVENTARIO IT v3 — Vistas útiles para consulta directa en MySQL
 -- Ejecutar UNA SOLA VEZ:
---   mysql -u root -p inventaller < sql/05_vistas.sql
+--   mysql -u root -p inventario2 < sql/05_vistas.sql
 -- =============================================================
-USE inventaller;
+USE inventario2;
 
 -- -------------------------------------------------------------
 -- Vista: v_equipos_detalle

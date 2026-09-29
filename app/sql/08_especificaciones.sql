@@ -4,7 +4,7 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- =============================================================
 -- Migración 08 — Añadir columna especificaciones a equipos
 -- Ejecutar solo si ya tienes la BD creada con el schema anterior
--- mysql -u root -p inventaller < sql/08_especificaciones.sql
+-- mysql -u root -p inventario2 < sql/08_especificaciones.sql
 -- =============================================================
 
 -- =============================================================
@@ -12,12 +12,12 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- Compatible con MySQL 5.7 / 8.x
 -- =============================================================
 
-USE inventaller;
+USE inventario2;
 
 -- Añadir columna especificaciones a equipos (si no existe)
 SET @col = (
     SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = 'inventaller'
+    WHERE TABLE_SCHEMA = 'inventario2'
       AND TABLE_NAME   = 'equipos'
       AND COLUMN_NAME  = 'especificaciones'
 );
@@ -30,7 +30,7 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 -- Añadir columna proveedor_id a movimientos (si no existe)
 SET @col2 = (
     SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = 'inventaller'
+    WHERE TABLE_SCHEMA = 'inventario2'
       AND TABLE_NAME   = 'movimientos'
       AND COLUMN_NAME  = 'proveedor_id'
 );
@@ -43,7 +43,7 @@ PREPARE stmt2 FROM @sql2; EXECUTE stmt2; DEALLOCATE PREPARE stmt2;
 -- Añadir columna ubicacion_origen_id a movimientos (si no existe)
 SET @col3 = (
     SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = 'inventaller'
+    WHERE TABLE_SCHEMA = 'inventario2'
       AND TABLE_NAME   = 'movimientos'
       AND COLUMN_NAME  = 'ubicacion_origen_id'
 );
@@ -54,7 +54,7 @@ SET @sql4 = IF(@col3 = 0,
 PREPARE stmt4 FROM @sql4; EXECUTE stmt4; DEALLOCATE PREPARE stmt4;
 SET @fk = (
     SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
-    WHERE TABLE_SCHEMA    = 'inventaller'
+    WHERE TABLE_SCHEMA    = 'inventario2'
       AND TABLE_NAME      = 'movimientos'
       AND CONSTRAINT_NAME = 'fk_mov_proveedor'
 );

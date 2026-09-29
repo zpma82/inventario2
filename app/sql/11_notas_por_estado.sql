@@ -1,5 +1,5 @@
 -- Migración 11: notas y especificaciones independientes por estado
-USE inventaller;
+USE inventario2;
 
 CREATE TABLE IF NOT EXISTS equipo_estado_info (
     equipo_id        INT NOT NULL,

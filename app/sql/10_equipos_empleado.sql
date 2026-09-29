@@ -1,10 +1,10 @@
 -- Migración 10 — Añadir empleado_id (operario responsable) a equipos
-USE inventaller;
+USE inventario2;
 
 -- Añadir columna solo si no existe
 SET @col_exists = (
   SELECT COUNT(*) FROM information_schema.COLUMNS
-  WHERE TABLE_SCHEMA = 'inventaller'
+  WHERE TABLE_SCHEMA = 'inventario2'
     AND TABLE_NAME   = 'equipos'
     AND COLUMN_NAME  = 'empleado_id'
 );

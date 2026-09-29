@@ -6,7 +6,7 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- Ejecutar con: mysql -u root -p < sql/03_usuarios.sql
 --
 -- Arquitectura:
---   1. Se crean 4 ROLES con sus privilegios sobre inventaller
+--   1. Se crean 4 ROLES con sus privilegios sobre inventario2
 --   2. Se crean los usuarios MySQL (operarios) y se les asigna un rol
 --   3. activate_all_roles_on_login = ON para que los roles se activen al conectar
 --
@@ -16,7 +16,7 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 --   rol_usuario  → SELECT, INSERT, UPDATE, DELETE
 --   rol_invitado → SELECT
 -- =============================================================
-USE inventaller;
+USE inventario2;
 
 -- ── Activar roles automáticamente al hacer login ────────────
 -- (necesario en MySQL 8 para que los roles tengan efecto)
@@ -33,22 +33,22 @@ CREATE ROLE IF NOT EXISTS 'rol_invitado';
 -- ── Privilegios de cada rol ──────────────────────────────────
 
 -- Administrador: acceso total + puede delegar permisos
-GRANT ALL PRIVILEGES ON inventaller.* TO 'rol_admin' WITH GRANT OPTION;
+GRANT ALL PRIVILEGES ON inventario2.* TO 'rol_admin' WITH GRANT OPTION;
 
 -- Técnico: puede modificar estructura + operar datos
 GRANT CREATE, ALTER, DROP,
       SELECT, INSERT, UPDATE, DELETE
-  ON inventaller.*
+  ON inventario2.*
   TO 'rol_tecnico';
 
 -- Usuario operario: solo operaciones CRUD sobre datos
 GRANT SELECT, INSERT, UPDATE, DELETE
-  ON inventaller.*
+  ON inventario2.*
   TO 'rol_usuario';
 
 -- Invitado: solo lectura
 GRANT SELECT
-  ON inventaller.*
+  ON inventario2.*
   TO 'rol_invitado';
 
 -- ────────────────────────────────────────────────────────────

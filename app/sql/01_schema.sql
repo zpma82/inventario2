@@ -6,11 +6,11 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- Ejecutar con: mysql -u root -p < sql/01_schema.sql
 -- =============================================================
 
-CREATE DATABASE IF NOT EXISTS inventaller
+CREATE DATABASE IF NOT EXISTS inventario2
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
-USE inventaller;
+USE inventario2;
 
 -- Categorías de equipo
 CREATE TABLE IF NOT EXISTS categorias (

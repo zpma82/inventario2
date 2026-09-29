@@ -4,9 +4,9 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- =============================================================
 -- MIGRACIÓN: soporte de múltiples ubicaciones por equipo
 -- Ejecutar UNA SOLA VEZ en bases de datos ya existentes:
---   mysql -u root -p inventaller < sql/04_migracion_multi_ubicacion.sql
+--   mysql -u root -p inventario2 < sql/04_migracion_multi_ubicacion.sql
 -- =============================================================
-USE inventaller;
+USE inventario2;
 
 -- Ampliar columna lado si aún tiene VARCHAR(5)
 ALTER TABLE ubic_lados   MODIFY valor VARCHAR(10);

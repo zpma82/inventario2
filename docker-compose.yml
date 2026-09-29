@@ -1,26 +1,20 @@
-# =============================================================
-# Inventario Taller — Docker Compose para CasaOS
-# Instalación:  git clone ... && docker compose up -d
-# WebUI:        http://<IP>:8085   |   admin / 1234
-# =============================================================
-name: inventario-taller
+version: '3.8'
 
 services:
-
   db:
     image: mysql:8.0
-    container_name: inventaller_db
+    container_name: inventario2_db
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: RootPass_Cambia1!
-      MYSQL_DATABASE: inventaller
+      MYSQL_DATABASE: inventario2
       MYSQL_USER: almacen_local
       MYSQL_PASSWORD: CambiaEstaPassword1!
       TZ: Europe/Madrid
     volumes:
       - db_data:/var/lib/mysql
     networks:
-      - inventaller_net
+      - inventario2_net
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pRootPass_Cambia1!"]
       interval: 10s
@@ -32,53 +26,46 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: inventaller_app:latest
-    container_name: inventaller_app
+    image: inventario2_app:latest
+    container_name: inventario2_app
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     ports:
-      - target: 80
-        published: 8085
-        protocol: tcp
+      - "8085:80"
     environment:
       DB_HOST: db
       DB_PORT: "3306"
-      DB_NAME: inventaller
+      DB_NAME: inventario2
       DB_USER: almacen_local
       DB_PASS: CambiaEstaPassword1!
+      TZ: Europe/Madrid
     volumes:
       - app_data:/var/www/html
     networks:
-      - inventaller_net
+      - inventario2_net
 
 volumes:
   db_data:
+    driver: local
   app_data:
+    driver: local
 
 networks:
-  inventaller_net:
+  inventario2_net:
     driver: bridge
 
-# Metadatos para CasaOS
 x-casaos:
-  architectures:
-    - amd64
-    - arm64
-  main: app
-  store_app_id: inventario-taller
-  category: utilidades
-  icon: http://localhost:8085/icon.png
-  title:
-    en_us: Inventario Taller
-  tagline:
-    en_us: Gestión de inventario para taller — IES Miguel de Molinos
-  description:
-    en_us: Gestión de equipos, ubicaciones y movimientos para el taller del IES.
+  title: Inventario Taller v2
+  category: Utilities
+  description: Sistema completo de gestión de inventario para taller
+  icon: https://raw.githubusercontent.com/zpma82/inventario2/main/app/icon.png
+  author: IES Miguel de Molinos
+  website: https://github.com/zpma82/inventario2
   port_map: "8085"
-  index: /
   scheme: http
-  tips:
-    before_install:
-      en_us: Accede con usuario admin y contraseña 1234 tras el primer arranque.
+  index: /
+  web_ui:
+    container: app
+    port: 80

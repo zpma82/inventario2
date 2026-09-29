@@ -3,13 +3,13 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- =============================================================
 -- INVENTARIO IT — Usuarios del frontend web
--- Ejecutar: mysql -u root -p inventaller < sql/06_usuarios_app.sql
+-- Ejecutar: mysql -u root -p inventario2 < sql/06_usuarios_app.sql
 --
 -- Vincula los operarios (empleados) con cuentas de acceso
 -- al frontend. Contraseña por defecto: 1234
 -- Hash de '1234' con PASSWORD_BCRYPT generado con PHP.
 -- =============================================================
-USE inventaller;
+USE inventario2;
 
 -- Tabla de usuarios del frontend
 CREATE TABLE IF NOT EXISTS usuarios (

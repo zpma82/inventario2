@@ -2,7 +2,7 @@
 -- Migración 09 — Añadir 'Frente' y 'Atras' a ubic_lados
 -- =============================================================
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE inventaller;
+USE inventario2;
 
 INSERT IGNORE INTO ubic_lados VALUES ('Frente');
 INSERT IGNORE INTO ubic_lados VALUES ('Atras');

@@ -7,7 +7,7 @@
 
 define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
 define('DB_PORT', getenv('DB_PORT') ?: '3306');
-define('DB_NAME', getenv('DB_NAME') ?: 'inventaller');
+define('DB_NAME', getenv('DB_NAME') ?: 'inventario2');
 define('DB_USER', getenv('DB_USER') ?: 'almacen_local');
 define('DB_PASS', getenv('DB_PASS') ?: 'CambiaEstaPassword_Local1!');
 define('DB_CHAR', 'utf8mb4');

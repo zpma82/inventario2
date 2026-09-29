@@ -4,9 +4,9 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- =============================================================
 -- INVENTARIO TALLER — Migración: tabla subcategorias
 -- Ejecutar UNA SOLA VEZ en bases de datos ya existentes:
---   mysql -u root -p inventaller < sql/07_migracion_subcategorias.sql
+--   mysql -u root -p inventario2 < sql/07_migracion_subcategorias.sql
 -- =============================================================
-USE inventaller;
+USE inventario2;
 
 -- Crear tabla subcategorias
 CREATE TABLE IF NOT EXISTS subcategorias (
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS subcategorias (
 -- Añadir columna subcategoria_id a equipos si no existe
 SET @col_exists = (
     SELECT COUNT(*) FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = 'inventaller'
+    WHERE TABLE_SCHEMA = 'inventario2'
       AND TABLE_NAME   = 'equipos'
       AND COLUMN_NAME  = 'subcategoria_id'
 );
@@ -35,7 +35,7 @@ DEALLOCATE PREPARE stmt;
 -- Añadir FK si no existe
 SET @fk_exists = (
     SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
-    WHERE CONSTRAINT_SCHEMA = 'inventaller'
+    WHERE CONSTRAINT_SCHEMA = 'inventario2'
       AND TABLE_NAME         = 'equipos'
       AND CONSTRAINT_NAME    = 'fk_equip_subcat'
 );

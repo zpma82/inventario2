@@ -3,10 +3,10 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- =============================================================
 -- INVENTARIO IT — Datos de ejemplo
--- Ejecutar con: mysql -u root -p inventaller < sql/02_seed.sql
+-- Ejecutar con: mysql -u root -p inventario2 < sql/02_seed.sql
 -- =============================================================
 
-USE inventaller;
+USE inventario2;
 
 -- Categorías de equipos informáticos
 INSERT IGNORE INTO categorias (nombre) VALUES

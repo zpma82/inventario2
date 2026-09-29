@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="icon.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Inventario Taller</title>
+  <title>Inventario Taller v2</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -2293,7 +2293,7 @@
         // Extraer nombre del fichero de la cabecera
         const cd = r.headers.get('Content-Disposition') || '';
         const match = cd.match(/filename="?([^"]+)"?/);
-        const filename = match ? match[1] : `backup_inventaller_${new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')}.json`;
+        const filename = match ? match[1] : `backup_inventario2_${new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')}.json`;
         // Descargar
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
