@@ -6,7 +6,7 @@
 # =============================================================
 set -e
 
-BASE=/DATA/AppData/inventaller
+BASE=/DATA/AppData/inventario2
 REPO="$(cd "$(dirname "$0")" && pwd)"
 
 echo "▶ Creando directorios en $BASE ..."

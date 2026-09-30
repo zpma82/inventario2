@@ -11,8 +11,8 @@ Dockerizada y compatible con **CasaOS Custom Install**.
 ## Instalación rápida
 
 ```bash
-git clone https://github.com/zpma82/inventario-taller.git
-cd inventario-taller
+git clone https://github.com/zpma82/inventario2.git
+cd inventario2
 cp .env.example .env
 # Edita .env con tus contraseñas
 docker compose up -d
@@ -42,7 +42,7 @@ Accede en: `http://<IP>:8085`
 ## Estructura
 
 ```
-inventario-taller/
+inventario2/
 ├── app/
 │   ├── index.html          # Frontend SPA
 │   ├── api/                # Backend PHP
