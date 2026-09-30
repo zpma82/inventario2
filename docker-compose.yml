@@ -21,6 +21,9 @@ services:
       start_period: 40s
 
   app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     image: inventario2_app:latest
     container_name: inventario2_app
     restart: unless-stopped
