@@ -2,7 +2,7 @@
 HOST="${DB_HOST:-db}"
 USER="${DB_USER:-almacen_local}"
 PASS="${DB_PASS:-CambiaEstaPassword1!}"
-NAME="${DB_NAME:-inventaller}"
+NAME="${DB_NAME:-inventario2}"
 ROOT_PASS="RootPass_Cambia1!"
 MYSQL="mysql --skip-ssl"
 

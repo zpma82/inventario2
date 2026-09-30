@@ -5,7 +5,7 @@
 # =============================================================
 set -e
 REPO="$(cd "$(dirname "$0")" && pwd)"
-CONTAINER=inventaller_app
+CONTAINER=inventario2_app
 
 echo "▶ Copiando ficheros directamente al contenedor..."
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
