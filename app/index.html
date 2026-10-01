@@ -172,7 +172,9 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ── Tabla ── */
-    .table-wrap { margin: 0 2rem 2rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; overflow-x: auto; }
+    .table-wrap { margin: 0 2rem 2rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--sh); overflow: auto; max-height: calc(100vh - 300px); }
+    /* Cabecera fija: solo el cuerpo (tbody) se desplaza */
+    .table-wrap thead th { position: sticky; top: 0; z-index: 5; background: #f8fafc; box-shadow: inset 0 -1px 0 var(--border); }
     table { width: 100%; border-collapse: collapse; font-size: .875rem; }
     thead { background: #f8fafc; border-bottom: 1px solid var(--border); }
     th { padding: .75rem 1rem; text-align: left; font-size: .72rem; font-weight: 600; color: var(--txt-2); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; cursor: pointer; user-select: none; transition: color .15s; }
@@ -2456,6 +2458,26 @@
       if (el) el.textContent = fecha + ' · ' + hora;
       setTimeout(actualizarFecha, 1000);
     })();
+
+    // ── Altura de la tabla: cabecera fija, solo scrollea el cuerpo ──
+    function ajustarAlturaTabla() {
+      const w = document.querySelector('.table-wrap');
+      if (!w || !w.offsetParent) return;
+      const footer = document.getElementById('app-footer');
+      const fh = footer ? footer.offsetHeight : 0;
+      const mb = parseFloat(getComputedStyle(w).marginBottom) || 0;
+      const top = w.getBoundingClientRect().top + window.scrollY;
+      w.style.maxHeight = Math.max(220, window.innerHeight - top - fh - mb) + 'px';
+    }
+    window.addEventListener('resize', ajustarAlturaTabla);
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(ajustarAlturaTabla);
+      ['.stats', '.toolbar', '#loading', '#api-banner'].forEach(sel => {
+        const el = document.querySelector(sel);
+        if (el) ro.observe(el);
+      });
+    }
+    ajustarAlturaTabla();
 
     // Verificar si hay sesión guardada al arrancar
     (async function init() {
