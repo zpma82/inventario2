@@ -6,6 +6,7 @@
 // una "fila virtual" por cada combinación (equipo × estado).
 // =============================================================
 require_once 'config.php';
+require_once __DIR__ . '/historial_lib.php';
 
 $pdo    = getPDO();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -296,7 +297,36 @@ function actualizar(PDO $pdo, ?int $id): void {
 // -------------------------------------------------------------
 function eliminar(PDO $pdo, ?int $id): void {
     if (!$id) responder(['error' => 'ID requerido'], 400);
-    $pdo->prepare("DELETE FROM equipos WHERE id = ?")->execute([$id]);
+
+    $st = $pdo->prepare("SELECT nombre, numero_serie, cantidad, ubicacion_id FROM equipos WHERE id = ?");
+    $st->execute([$id]);
+    $eq = $st->fetch();
+
+    $movId = null;
+    $pdo->beginTransaction();
+    try {
+        if ($eq) {
+            // Unidades que había en el almacén (suma de líneas; si no hay, el total del equipo)
+            $q = $pdo->prepare("SELECT COALESCE(SUM(cantidad), 0) FROM equipo_ubicaciones WHERE equipo_id = ?");
+            $q->execute([$id]);
+            $uds = (int)$q->fetchColumn();
+            if ($uds === 0) $uds = (int)$eq['cantidad'];
+
+            $u = historialUsuarioActual($pdo);
+            $pdo->prepare("
+                INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, empleado_id, tipo, cantidad, ubicacion_origen_id)
+                VALUES (?, ?, ?, ?, 'eliminacion', ?, ?)
+            ")->execute([$id, $eq['nombre'], $eq['numero_serie'], $u['empleado_id'] ?? null, $uds, $eq['ubicacion_id']]);
+            $movId = (int)$pdo->lastInsertId();
+        }
+        // Los movimientos se conservan: la FK es ON DELETE SET NULL
+        $pdo->prepare("DELETE FROM equipos WHERE id = ?")->execute([$id]);
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        responder(['error' => 'Error al eliminar: ' . $e->getMessage()], 500);
+    }
+    if ($movId) historialCsvAnadir($pdo, [$movId]);
     responder(['mensaje' => 'Equipo eliminado']);
 }
 

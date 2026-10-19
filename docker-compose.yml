@@ -41,6 +41,7 @@ services:
       TZ: Europe/Madrid
     volumes:
       - app_data:/var/www/html
+      - historial_data:/var/www/historial
     networks:
       - inventario2_net
 
@@ -48,6 +49,8 @@ volumes:
   db_data:
     driver: local
   app_data:
+    driver: local
+  historial_data:
     driver: local
 
 networks:

@@ -29,6 +29,9 @@ cd /home/jesus/inventario2
 git pull
 ```
 
+> **Historial permanente (migración 13).** Si vienes de una versión anterior, aplica una vez la migración **antes** de desplegar:
+> `sudo docker exec -i inventario2_db mysql -uroot -p'<contraseña root>' inventario2 < app/sql/13_historial_permanente.sql`
+
 **A) Actualización rápida** (cambios en `app/api/*.php`, `app/index.html` o `app/img-ies.png`). Copia los ficheros al contenedor en marcha, sin reconstruir nada:
 
 ```bash
@@ -111,3 +114,11 @@ docker compose down
 # Borrar también la BD (⚠️ destruye datos)
 docker compose down -v
 ```
+
+## Historial general y fichero CSV
+
+- **Historial general** (menú lateral): todos los movimientos de todos los productos, también de los **eliminados** (aparecen marcados). Filtros por texto, tipo, fechas y "solo eliminados". Botón para descargar en CSV lo que se ve.
+- **Fichero CSV permanente**: cada movimiento (entrada, salida, cambio de ubicación, separación y eliminación) se añade además a `/var/www/historial/movimientos.csv` dentro del contenedor, que es el volumen `historial_data`. Se descarga desde el propio Historial ("Descargar fichero del servidor").
+- **Retención** (solo administradores, en el Historial): *Siempre*, *1 mes* o *2 meses*. Al elegir 1 o 2 meses se borran del **fichero** los movimientos más antiguos (una vez al día y al cambiar el ajuste). La base de datos conserva todo el historial.
+- El fichero no es accesible por la web directamente: solo se descarga con sesión iniciada.
+- Si ya tenías el contenedor creado antes de este cambio, recrea el contenedor para que se monte el volumen: `sudo docker compose up -d --build`. Hasta entonces el fichero vive dentro del contenedor y se pierde si se recrea.

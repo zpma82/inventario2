@@ -26,6 +26,11 @@ COPY app/ /var/www/html/
 # Copiar SQLs también a /var/www/html/sql/ para el script de init
 COPY app/sql/ /var/www/html/sql/
 
+# Carpeta del historial CSV (fuera de la web; se monta como volumen persistente)
+RUN mkdir -p /var/www/historial \
+ && chown www-data:www-data /var/www/historial \
+ && chmod 775 /var/www/historial
+
 RUN chown -R www-data:www-data /var/www/html \
  && chmod +x /usr/local/bin/init-db.sh
 

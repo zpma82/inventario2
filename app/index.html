@@ -226,6 +226,12 @@
     .tag-suma  { color: var(--ok);    font-weight: 600; }
     .tag-resta { color: var(--danger); font-weight: 600; }
     .tag-ubicacion { color: var(--accent); font-weight: 600; }
+    .tag-eliminacion { color: var(--danger); font-weight: 600; }
+    .hg-badge { display:inline-block; margin-left:.4rem; padding:.05rem .4rem; border-radius:4px; background: var(--danger-lt); color: var(--danger); font-size:.7rem; font-weight:700; }
+    .hg-scroll { max-height: 48vh; overflow: auto; border: 1px solid var(--border); border-radius: var(--r); }
+    .hg-scroll table { width: 100%; }
+    .hg-scroll thead th { position: sticky; top: 0; z-index: 2; background: #f8fafc; box-shadow: inset 0 -1px 0 var(--border); }
+    .tag-separacion { color: #7c3aed; font-weight: 600; }
 
     /* ── Modales ── */
     .modal-body-scroll { flex: 1; overflow-y: auto; padding-right: .25rem; }
@@ -341,6 +347,9 @@
     <nav id="sidebar-nav">
       <button class="sb-btn" id="btn-ubicaciones" onclick="abrirModalUbicaciones()">
         <span class="sb-icon">📍</span><span class="sb-label">Ubicaciones</span>
+      </button>
+      <button class="sb-btn" id="btn-historial" onclick="abrirHistorialGeneral()">
+        <span class="sb-icon">📜</span><span class="sb-label">Historial general</span>
       </button>
       <button class="sb-btn" id="btn-usuarios" onclick="abrirModalUsuarios()" style="display:none">
         <span class="sb-icon">👥</span><span class="sb-label">Usuarios</span>
@@ -765,6 +774,54 @@
   </div>
 
   <!-- ══ MODAL BACKUP / IMPORTAR ══ -->
+  <!-- MODAL: HISTORIAL GENERAL -->
+  <div class="overlay" id="overlay-historial" onclick="cerrarSiOverlay(event,'overlay-historial')">
+    <div class="modal" style="max-width:1100px">
+      <div class="modal-header">
+        <h2>📜 Historial general de movimientos</h2>
+        <button class="btn-close" onclick="cerrarModal('overlay-historial')">✕</button>
+      </div>
+
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.75rem">
+        <input type="text" id="hg-q" placeholder="Buscar por nombre o nº de serie…" style="flex:1;min-width:200px" oninput="hgFiltrarConRetraso()">
+        <select id="hg-tipo" onchange="cargarHistorialGeneral()">
+          <option value="">Todos los tipos</option>
+          <option value="suma">▲ Entrada</option>
+          <option value="resta">▼ Salida</option>
+          <option value="ubicacion">📍 Cambiar ubicación</option>
+          <option value="separacion">✂️ Separar ubicaciones</option>
+          <option value="eliminacion">🗑️ Eliminado del almacén</option>
+        </select>
+        <label style="font-size:.8rem;color:var(--txt-2)">Desde <input type="date" id="hg-desde" onchange="cargarHistorialGeneral()"></label>
+        <label style="font-size:.8rem;color:var(--txt-2)">Hasta <input type="date" id="hg-hasta" onchange="cargarHistorialGeneral()"></label>
+        <label style="font-size:.82rem;color:var(--txt-2);display:flex;gap:.3rem;align-items:center;cursor:pointer">
+          <input type="checkbox" id="hg-elim" onchange="cargarHistorialGeneral()"> Solo productos eliminados
+        </label>
+      </div>
+
+      <div class="hg-scroll" id="hg-tabla"></div>
+      <div id="hg-resumen" style="font-size:.8rem;color:var(--txt-3);margin:.5rem 0 1rem"></div>
+
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:.85rem 1rem;font-size:.85rem;color:var(--txt-2);line-height:1.6">
+        <div style="font-weight:700;margin-bottom:.4rem">📁 Fichero CSV permanente</div>
+        <div id="hg-fichero" style="margin-bottom:.6rem">Cargando…</div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+          <button class="btn-primary" onclick="hgDescargar('historial.php?formato=csv'+hgParams(),'historial.csv')">⬇ Descargar lo que se ve (CSV)</button>
+          <button class="btn-ghost" id="hg-btn-fichero" onclick="hgDescargar('historial.php?accion=fichero','historial_servidor.csv')">⬇ Descargar fichero del servidor</button>
+          <span id="hg-ret-wrap" style="display:none;margin-left:auto;align-items:center;gap:.4rem">
+            Conservar en el fichero:
+            <select id="hg-meses" onchange="hgGuardarRetencion()">
+              <option value="0">Siempre (permanente)</option>
+              <option value="1">1 mes</option>
+              <option value="2">2 meses</option>
+            </select>
+          </span>
+        </div>
+        <div id="hg-msg" style="display:none;margin-top:.5rem;font-size:.82rem"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="overlay" id="overlay-backup" onclick="cerrarSiOverlay(event,'overlay-backup')">
     <div class="modal" style="max-width:520px">
       <div class="modal-header">
@@ -1499,18 +1556,25 @@
         const movs = await apiGet(`movimientos.php?equipo_id=${id}`);
         con.innerHTML = movs.length
           ? `<table style="width:100%">
-               <thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th>Operario</th><th>Proveedor / Cliente</th></tr></thead>
-               <tbody>${movs.map(m=>`<tr>
+               <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Detalle</th><th>Operario</th><th>Proveedor / Cliente</th></tr></thead>
+               <tbody>${movs.map(m=>{
+                 const etiquetas = {suma:'▲ Entrada', resta:'▼ Salida', ubicacion:'📍 Cambiar ubicación', separacion:'✂️ Separar ubicaciones'};
+                 const cant = Number(m.cantidad)||0;
+                 const cantTxt = cant>0
+                   ? (m.tipo==='suma' ? `+${cant}` : m.tipo==='resta' ? `−${cant}` : `${cant}`) + ' uds'
+                   : '—';
+                 const mueveUbic = m.tipo==='ubicacion' || m.tipo==='separacion';
+                 const detalle = mueveUbic
+                   ? `${m.ubicacion_origen?`De ${m.ubicacion_origen} &nbsp;→&nbsp; `:''}${m.ubicacion_nueva||'—'}`
+                   : (m.ubicacion_origen || '—');
+                 return `<tr>
                  <td class="td-mono">${m.fecha}</td>
-                 <td class="tag-${m.tipo}">${m.tipo==='suma'?'▲ Entrada':m.tipo==='resta'?'▼ Salida':'📍 Ubicación'}</td>
-                 <td class="td-mono">${
-                   m.tipo==='ubicacion'
-                     ? `${m.ubicacion_origen?`De ${m.ubicacion_origen} &nbsp;→&nbsp; `:''}${m.ubicacion_nueva||'—'}`
-                     : `${m.ubicacion_origen?`De ${m.ubicacion_origen} &nbsp;→&nbsp; `:''}${m.cantidad} uds`
-                 }</td>
+                 <td class="tag-${m.tipo}">${etiquetas[m.tipo]||m.tipo}</td>
+                 <td class="td-mono">${cantTxt}</td>
+                 <td class="td-mono">${detalle}</td>
                  <td>${m.empleado||'—'}</td>
                  <td>${m.tipo==='suma'?(m.proveedor||'—'):m.tipo==='resta'?(m.cliente||'—'):'—'}</td>
-               </tr>`).join('')}</tbody></table>`
+               </tr>`;}).join('')}</tbody></table>`
           : `<p style="color:var(--txt-2);font-size:.85rem">Sin movimientos registrados.</p>`;
       } catch { con.innerHTML=`<p style="color:var(--danger)">Error al cargar historial.</p>`; }
     }
@@ -2478,6 +2542,116 @@
       });
     }
     ajustarAlturaTabla();
+
+    // ── Historial general (todos los movimientos, incluso de productos eliminados) ──
+    let hgTimer = null;
+    function hgFiltrarConRetraso() { clearTimeout(hgTimer); hgTimer = setTimeout(cargarHistorialGeneral, 300); }
+    function hgParams() {
+      const p = new URLSearchParams();
+      const q = document.getElementById('hg-q').value.trim();
+      const t = document.getElementById('hg-tipo').value;
+      const d = document.getElementById('hg-desde').value;
+      const h = document.getElementById('hg-hasta').value;
+      if (q) p.set('q', q);
+      if (t) p.set('tipo', t);
+      if (d) p.set('desde', d);
+      if (h) p.set('hasta', h);
+      if (document.getElementById('hg-elim').checked) p.set('solo_eliminados', '1');
+      const s = p.toString();
+      return s ? '&' + s : '';
+    }
+    function hgEsc(v) { return String(v ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    function hgMsg(txt, ok) {
+      const el = document.getElementById('hg-msg');
+      el.style.display = txt ? 'block' : 'none';
+      el.style.color = ok ? 'var(--ok)' : 'var(--danger)';
+      el.textContent = txt || '';
+    }
+    function hgBytes(b) { return b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(1) + ' KB' : (b/1048576).toFixed(1) + ' MB'; }
+
+    async function abrirHistorialGeneral() {
+      hgMsg('');
+      document.getElementById('overlay-historial').classList.add('active');
+      await Promise.all([cargarHistorialGeneral(), hgCargarAjustes()]);
+    }
+
+    async function cargarHistorialGeneral() {
+      const cont = document.getElementById('hg-tabla');
+      try {
+        const movs = await apiGet('historial.php?limite=500' + hgParams());
+        const etiquetas = {suma:'▲ Entrada', resta:'▼ Salida', ubicacion:'📍 Cambiar ubicación', separacion:'✂️ Separar ubicaciones', eliminacion:'🗑️ Eliminado del almacén'};
+        if (!movs.length) {
+          cont.innerHTML = '<p style="padding:1rem;color:var(--txt-2);font-size:.85rem">No hay movimientos con esos filtros.</p>';
+        } else {
+          cont.innerHTML = `<table>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th>Cantidad</th><th>Detalle</th><th>Operario</th><th>Proveedor / Cliente</th></tr></thead>
+            <tbody>${movs.map(m => {
+              const cant = Number(m.cantidad) || 0;
+              const cantTxt = cant > 0 ? (m.tipo==='suma' ? `+${cant}` : (m.tipo==='resta'||m.tipo==='eliminacion') ? `−${cant}` : `${cant}`) + ' uds' : '—';
+              const mueve = m.tipo==='ubicacion' || m.tipo==='separacion';
+              const detalle = mueve
+                ? `${m.ubicacion_origen ? 'De ' + hgEsc(m.ubicacion_origen) + ' &nbsp;→&nbsp; ' : ''}${hgEsc(m.ubicacion_nueva) || '—'}`
+                : hgEsc(m.ubicacion_origen) || '—';
+              const pc = m.tipo==='suma' ? m.proveedor : m.tipo==='resta' ? m.cliente : '';
+              return `<tr>
+                <td class="td-mono">${hgEsc(m.fecha)}</td>
+                <td class="tag-${hgEsc(m.tipo)}">${etiquetas[m.tipo] || hgEsc(m.tipo)}</td>
+                <td>${hgEsc(m.equipo) || '—'}${m.serie ? ` <span class="td-mono">(${hgEsc(m.serie)})</span>` : ''}${Number(m.eliminado) ? '<span class="hg-badge">ELIMINADO</span>' : ''}</td>
+                <td class="td-mono">${cantTxt}</td>
+                <td class="td-mono">${detalle}</td>
+                <td>${hgEsc(m.empleado) || '—'}</td>
+                <td>${hgEsc(pc) || '—'}</td>
+              </tr>`;
+            }).join('')}</tbody></table>`;
+        }
+        document.getElementById('hg-resumen').textContent =
+          movs.length + ' movimiento' + (movs.length===1 ? '' : 's') + (movs.length>=500 ? ' (se muestran los 500 más recientes; usa los filtros o descarga el CSV para ver todos)' : '');
+      } catch (e) {
+        cont.innerHTML = `<p style="padding:1rem;color:var(--danger);font-size:.85rem">${hgEsc(e.message)}</p>`;
+      }
+    }
+
+    async function hgCargarAjustes() {
+      const info = document.getElementById('hg-fichero');
+      try {
+        const a = await apiGet('historial.php?accion=ajustes');
+        const f = a.fichero || {};
+        const reten = a.meses === 0 ? 'permanente (no se borra nada)' : `se conservan los últimos ${a.meses} mes${a.meses>1?'es':''}`;
+        info.innerHTML = f.existe
+          ? `Se guarda automáticamente cada movimiento. Retención: <b>${reten}</b>.<br>${f.filas} filas · ${hgBytes(f.bytes)} · desde ${hgEsc(f.desde || '—')} hasta ${hgEsc(f.hasta || '—')}`
+          : `Se guarda automáticamente cada movimiento. Retención: <b>${reten}</b>.<br>Aún no hay ningún movimiento registrado en el fichero.`;
+        document.getElementById('hg-btn-fichero').disabled = !f.existe;
+        document.getElementById('hg-meses').value = String(a.meses);
+        document.getElementById('hg-ret-wrap').style.display = a.admin ? 'flex' : 'none';
+      } catch (e) { info.textContent = e.message; }
+    }
+
+    async function hgGuardarRetencion() {
+      const meses = parseInt(document.getElementById('hg-meses').value, 10);
+      if (meses > 0 && !confirm(`Se borrarán del fichero CSV los movimientos con más de ${meses} mes${meses>1?'es':''}. ¿Continuar?\n\n(El historial de la pantalla no se toca: solo el fichero.)`)) {
+        await hgCargarAjustes(); return;
+      }
+      try {
+        const r = await apiPost('historial.php', { accion: 'ajustes', meses });
+        hgMsg(meses === 0 ? 'Retención permanente guardada.' :
+              `Retención guardada. Filas retiradas del fichero: ${r.filas_eliminadas_del_fichero}.`, true);
+        await hgCargarAjustes();
+      } catch (e) { hgMsg(e.message, false); }
+    }
+
+    async function hgDescargar(ep, nombre) {
+      try {
+        const r = await fetch(`${BASE_URL}/${ep}`, { headers: { 'Authorization': `Bearer ${getToken()}` } });
+        if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.error || `HTTP ${r.status}`); }
+        const blob = await r.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = nombre;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        hgMsg('', true);
+      } catch (e) { hgMsg(e.message, false); }
+    }
 
     // Verificar si hay sesión guardada al arrancar
     (async function init() {

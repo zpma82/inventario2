@@ -7,6 +7,7 @@
 //      tipo='separacion' + lineas[]      → distribuir en varias ubicaciones
 // =============================================================
 require_once 'config.php';
+require_once __DIR__ . '/historial_lib.php';
 
 $pdo    = getPDO();
 $method = $_SERVER['REQUEST_METHOD'];
@@ -44,6 +45,9 @@ if ($method === 'GET') {
     if (!$equipo_id) {
         responder(['error' => 'equipo_id requerido'], 400);
     }
+
+    // Copia del nombre y la serie: el historial se conserva aunque el equipo se elimine
+    [$eqNombre, $eqSerie] = historialInstantanea($pdo, $equipo_id);
 
     // ── Tipo especial: separación en múltiples ubicaciones ──────
     if ($tipo === 'separacion') {
@@ -151,14 +155,26 @@ if ($method === 'GET') {
                 WHERE id = ?
             ")->execute([$equipo_id, $equipo_id, $equipo_id]);
 
-            // Historial
-            $primeraUbic = (int)($lineas[0]['id'] ?? 0);
-            $pdo->prepare("
-                INSERT INTO movimientos (equipo_id, empleado_id, tipo, cantidad, ubicacion_origen_id, ubicacion_id)
-                VALUES (?, ?, 'ubicacion', 0, ?, ?)
-            ")->execute([$equipo_id, $d['empleado_id'] ?? null, $ubicOrigenSep, $primeraUbic ?: null]);
+            // Historial: una fila por cada línea que cambia de ubicación,
+            // con su cantidad (las unidades que se quedan en el origen no se registran)
+            $stmtHist = $pdo->prepare("
+                INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, empleado_id, tipo, cantidad, ubicacion_origen_id, ubicacion_id)
+                VALUES (?, ?, ?, ?, 'separacion', ?, ?, ?)
+            ");
+            $movIds = [];
+            foreach ($lineasNorm as $ln) {
+                if ($ubicOrigenSep !== null && (int)$ln['uid'] === (int)$ubicOrigenSep) continue;
+                $stmtHist->execute([$equipo_id, $eqNombre, $eqSerie, $d['empleado_id'] ?? null, $ln['cant'], $ubicOrigenSep, $ln['uid']]);
+                $movIds[] = (int)$pdo->lastInsertId();
+            }
+            // Si ninguna línea cambió de ubicación (p. ej. solo cambió el estado), dejar constancia igualmente
+            if (!$movIds && !empty($lineasNorm)) {
+                $stmtHist->execute([$equipo_id, $eqNombre, $eqSerie, $d['empleado_id'] ?? null, array_sum(array_column($lineasNorm, 'cant')), $ubicOrigenSep, $lineasNorm[0]['uid']]);
+                $movIds[] = (int)$pdo->lastInsertId();
+            }
 
             $pdo->commit();
+            historialCsvAnadir($pdo, $movIds);
             responder(['mensaje' => 'Separación de ubicaciones guardada'], 201);
         } catch (Exception $e) {
             $pdo->rollBack();
@@ -284,6 +300,7 @@ if ($method === 'GET') {
                     $q2->execute([$equipo_id]);
                     $cantFila = (int)$q2->fetchColumn();
                 }
+                $cantidad = $cantFila;   // unidades que se mueven (para el historial)
                 // Eliminar líneas de este estado
                 $pdo->prepare("DELETE FROM equipo_ubicaciones WHERE equipo_id=? AND estado=?")
                     ->execute([$equipo_id, $filaEstado]);
@@ -300,6 +317,7 @@ if ($method === 'GET') {
                 $q = $pdo->prepare("SELECT cantidad FROM equipos WHERE id=?");
                 $q->execute([$equipo_id]);
                 $stock = (int)$q->fetchColumn();
+                $cantidad = $stock;      // unidades que se mueven (para el historial)
                 $pdo->prepare("DELETE FROM equipo_ubicaciones WHERE equipo_id=?")
                     ->execute([$equipo_id]);
                 if ($uid) {
@@ -321,10 +339,12 @@ if ($method === 'GET') {
         }
 
         $pdo->prepare("
-            INSERT INTO movimientos (equipo_id, empleado_id, tipo, cantidad, cliente_id, proveedor_id, ubicacion_origen_id, ubicacion_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, empleado_id, tipo, cantidad, cliente_id, proveedor_id, ubicacion_origen_id, ubicacion_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ")->execute([
             $equipo_id,
+            $eqNombre,
+            $eqSerie,
             $d['empleado_id']  ?? null,
             $tipo,
             $cantidad,
@@ -333,8 +353,10 @@ if ($method === 'GET') {
             $ubicacionOrigenId,
             $d['ubicacion_id'] ?? null,
         ]);
+        $movId = (int)$pdo->lastInsertId();
 
         $pdo->commit();
+        historialCsvAnadir($pdo, [$movId]);
         responder(['mensaje' => 'Movimiento registrado'], 201);
     } catch (Exception $e) {
         $pdo->rollBack();
