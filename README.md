@@ -118,7 +118,15 @@ docker compose down -v
 ## Historial general y fichero CSV
 
 - **Historial general** (menú lateral): todos los movimientos de todos los productos, también de los **eliminados** (aparecen marcados). Filtros por texto, tipo, fechas y "solo eliminados". Botón para descargar en CSV lo que se ve.
-- **Fichero CSV permanente**: cada movimiento (entrada, salida, cambio de ubicación, separación y eliminación) se añade además a `/var/www/historial/movimientos.csv` dentro del contenedor, que es el volumen `historial_data`. Se descarga desde el propio Historial ("Descargar fichero del servidor").
+- **Fichero CSV permanente**: cada movimiento (entrada, salida, cambio de ubicación, separación y eliminación) se añade además a `movimientos.csv`. En la VM está en `/DATA/AppData/inventario2/historial/movimientos.csv` (carpeta montada en el contenedor como `/var/www/historial`), así que se ve desde la app **Archivos** de CasaOS y sobrevive a reconstruir o borrar el contenedor. Se descarga desde el propio Historial ("Descargar fichero del servidor"). Usa `;` como separador y UTF-8: Excel y LibreOffice lo abren directamente.
 - **Retención** (solo administradores, en el Historial): *Siempre*, *1 mes* o *2 meses*. Al elegir 1 o 2 meses se borran del **fichero** los movimientos más antiguos (una vez al día y al cambiar el ajuste). La base de datos conserva todo el historial.
 - El fichero no es accesible por la web directamente: solo se descarga con sesión iniciada.
-- Si ya tenías el contenedor creado antes de este cambio, recrea el contenedor para que se monte el volumen: `sudo docker compose up -d --build`. Hasta entonces el fichero vive dentro del contenedor y se pierde si se recrea.
+- Si vienes de una versión anterior, recrea el contenedor para que se monte la carpeta: `sudo docker compose up -d --build`. Si ya tenías un `movimientos.csv` dentro del contenedor, rescátalo antes y devuélvele el propietario:
+```bash
+  sudo mkdir -p /DATA/AppData/inventario2/historial
+  sudo docker cp inventario2_app:/var/www/historial/movimientos.csv /DATA/AppData/inventario2/historial/
+  sudo chown -R 33:33 /DATA/AppData/inventario2/historial
+```
+- Las actualizaciones (rápida y completa) **no tocan** esta carpeta, y tampoco `docker volume rm inventario2_app_data`. Incluye `/DATA/AppData/inventario2/historial/` en tus copias de seguridad.
+- Si el fichero no se escribe, el log lo indica (`sudo docker logs inventario2_app 2>&1 | grep historial`: *No se puede escribir en ...*). Casi siempre es un problema de permisos de la carpeta; se arregla con `sudo docker exec inventario2_app chown -R www-data:www-data /var/www/historial`. Un fallo del CSV **no impide** registrar movimientos: el historial de la base de datos se guarda igualmente.
+- El visor de archivos de CasaOS puede quedarse "pensando" al abrir un CSV. No es un error: descárgalo y ábrelo con Excel o LibreOffice (o `cat` desde la terminal).
