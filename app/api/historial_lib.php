@@ -128,6 +128,8 @@ function historialFilaCsv(array $r): array {
 
 // ── Escritura del fichero CSV ────────────────────────────────
 function historialCsvAnadir(PDO $pdo, array $movIds): void {
+    // El CSV es un extra: si falla NUNCA debe afectar a la respuesta de la API.
+    ob_start();
     try {
         $movIds = array_values(array_filter(array_map('intval', $movIds)));
         if (!$movIds) return;
@@ -137,8 +139,9 @@ function historialCsvAnadir(PDO $pdo, array $movIds): void {
         $filas = $st->fetchAll();
         if (!$filas) return;
 
-        $fh = fopen(historialRutaCsv(), 'a');
-        if (!$fh) throw new RuntimeException('No se puede abrir el fichero CSV');
+        $ruta = historialRutaCsv();
+        $fh = @fopen($ruta, 'a');
+        if (!$fh) throw new RuntimeException("No se puede escribir en $ruta (revisa los permisos de la carpeta del historial)");
         flock($fh, LOCK_EX);
         clearstatcache();
         $stat = fstat($fh);
@@ -155,6 +158,7 @@ function historialCsvAnadir(PDO $pdo, array $movIds): void {
     } catch (Throwable $e) {
         error_log('[historial] No se pudo escribir el CSV: ' . $e->getMessage());
     }
+    ob_end_clean();
 }
 
 // Si el fichero empieza por BOM UTF-8, coloca el puntero justo después
@@ -169,7 +173,7 @@ function historialCsvPurgar(int $meses): int {
     if ($meses <= 0 || !is_file($ruta)) return 0;
     $corte = date('Y-m-d H:i:s', strtotime("-{$meses} months"));
 
-    $fh = fopen($ruta, 'c+');
+    $fh = @fopen($ruta, 'c+');
     if (!$fh) return 0;
     flock($fh, LOCK_EX);
     rewind($fh);
@@ -211,7 +215,7 @@ function historialEstadoFichero(): array {
              'desde' => null, 'hasta' => null];
     if (!$info['existe']) return $info;
     $info['bytes'] = filesize($ruta);
-    $fh = fopen($ruta, 'r');
+    $fh = @fopen($ruta, 'r');
     if (!$fh) return $info;
     historialSaltarBom($fh);
     $primera = true;
