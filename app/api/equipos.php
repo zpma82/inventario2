@@ -301,6 +301,7 @@ function eliminar(PDO $pdo, ?int $id): void {
     $st = $pdo->prepare("SELECT nombre, numero_serie, cantidad, ubicacion_id FROM equipos WHERE id = ?");
     $st->execute([$id]);
     $eq = $st->fetch();
+    [, , $eqCat, $eqNotas] = historialInstantanea($pdo, $id);
 
     $movId = null;
     $pdo->beginTransaction();
@@ -314,9 +315,9 @@ function eliminar(PDO $pdo, ?int $id): void {
 
             $u = historialUsuarioActual($pdo);
             $pdo->prepare("
-                INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, empleado_id, tipo, cantidad, ubicacion_origen_id)
-                VALUES (?, ?, ?, ?, 'eliminacion', ?, ?)
-            ")->execute([$id, $eq['nombre'], $eq['numero_serie'], $u['empleado_id'] ?? null, $uds, $eq['ubicacion_id']]);
+                INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, equipo_categoria, equipo_notas, empleado_id, tipo, cantidad, ubicacion_origen_id)
+                VALUES (?, ?, ?, ?, ?, ?, 'eliminacion', ?, ?)
+            ")->execute([$id, $eq['nombre'], $eq['numero_serie'], $eqCat, $eqNotas, $u['empleado_id'] ?? null, $uds, $eq['ubicacion_id']]);
             $movId = (int)$pdo->lastInsertId();
         }
         // Los movimientos se conservan: la FK es ON DELETE SET NULL

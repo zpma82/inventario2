@@ -47,7 +47,7 @@ if ($method === 'GET') {
     }
 
     // Copia del nombre y la serie: el historial se conserva aunque el equipo se elimine
-    [$eqNombre, $eqSerie] = historialInstantanea($pdo, $equipo_id);
+    [$eqNombre, $eqSerie, $eqCat, $eqNotas] = historialInstantanea($pdo, $equipo_id);
 
     // ── Tipo especial: separación en múltiples ubicaciones ──────
     if ($tipo === 'separacion') {
@@ -158,18 +158,18 @@ if ($method === 'GET') {
             // Historial: una fila por cada línea que cambia de ubicación,
             // con su cantidad (las unidades que se quedan en el origen no se registran)
             $stmtHist = $pdo->prepare("
-                INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, empleado_id, tipo, cantidad, ubicacion_origen_id, ubicacion_id)
-                VALUES (?, ?, ?, ?, 'separacion', ?, ?, ?)
+                INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, equipo_categoria, equipo_notas, empleado_id, tipo, cantidad, ubicacion_origen_id, ubicacion_id)
+                VALUES (?, ?, ?, ?, ?, ?, 'separacion', ?, ?, ?)
             ");
             $movIds = [];
             foreach ($lineasNorm as $ln) {
                 if ($ubicOrigenSep !== null && (int)$ln['uid'] === (int)$ubicOrigenSep) continue;
-                $stmtHist->execute([$equipo_id, $eqNombre, $eqSerie, $d['empleado_id'] ?? null, $ln['cant'], $ubicOrigenSep, $ln['uid']]);
+                $stmtHist->execute([$equipo_id, $eqNombre, $eqSerie, $eqCat, $eqNotas, $d['empleado_id'] ?? null, $ln['cant'], $ubicOrigenSep, $ln['uid']]);
                 $movIds[] = (int)$pdo->lastInsertId();
             }
             // Si ninguna línea cambió de ubicación (p. ej. solo cambió el estado), dejar constancia igualmente
             if (!$movIds && !empty($lineasNorm)) {
-                $stmtHist->execute([$equipo_id, $eqNombre, $eqSerie, $d['empleado_id'] ?? null, array_sum(array_column($lineasNorm, 'cant')), $ubicOrigenSep, $lineasNorm[0]['uid']]);
+                $stmtHist->execute([$equipo_id, $eqNombre, $eqSerie, $eqCat, $eqNotas, $d['empleado_id'] ?? null, array_sum(array_column($lineasNorm, 'cant')), $ubicOrigenSep, $lineasNorm[0]['uid']]);
                 $movIds[] = (int)$pdo->lastInsertId();
             }
 
@@ -339,12 +339,14 @@ if ($method === 'GET') {
         }
 
         $pdo->prepare("
-            INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, empleado_id, tipo, cantidad, cliente_id, proveedor_id, ubicacion_origen_id, ubicacion_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, equipo_categoria, equipo_notas, empleado_id, tipo, cantidad, cliente_id, proveedor_id, ubicacion_origen_id, ubicacion_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ")->execute([
             $equipo_id,
             $eqNombre,
             $eqSerie,
+            $eqCat,
+            $eqNotas,
             $d['empleado_id']  ?? null,
             $tipo,
             $cantidad,

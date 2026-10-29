@@ -784,6 +784,10 @@
 
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.75rem">
         <input type="text" id="hg-q" placeholder="Buscar por nombre o nº de serie…" style="flex:1;min-width:200px" oninput="hgFiltrarConRetraso()">
+        <input type="text" id="hg-notas" placeholder="Notas / observaciones…" style="flex:1;min-width:180px" oninput="hgFiltrarConRetraso()">
+        <select id="hg-cat" onchange="cargarHistorialGeneral()">
+          <option value="">Todas las categorías</option>
+        </select>
         <select id="hg-tipo" onchange="cargarHistorialGeneral()">
           <option value="">Todos los tipos</option>
           <option value="suma">▲ Entrada</option>
@@ -2552,7 +2556,11 @@
       const t = document.getElementById('hg-tipo').value;
       const d = document.getElementById('hg-desde').value;
       const h = document.getElementById('hg-hasta').value;
+      const c = document.getElementById('hg-cat').value;
+      const n = document.getElementById('hg-notas').value.trim();
       if (q) p.set('q', q);
+      if (c) p.set('categoria', c);
+      if (n) p.set('notas', n);
       if (t) p.set('tipo', t);
       if (d) p.set('desde', d);
       if (h) p.set('hasta', h);
@@ -2569,8 +2577,19 @@
     }
     function hgBytes(b) { return b < 1024 ? b + ' B' : b < 1048576 ? (b/1024).toFixed(1) + ' KB' : (b/1048576).toFixed(1) + ' MB'; }
 
+    function hgPoblarCategorias() {
+      const sel = document.getElementById('hg-cat');
+      const actual = sel.value;
+      const nombres = new Set((todasCategorias || []).map(c => c.nombre));
+      if (actual) nombres.add(actual);
+      sel.innerHTML = '<option value="">Todas las categorías</option>' +
+        [...nombres].sort((a, b) => a.localeCompare(b, 'es')).map(n =>
+          `<option value="${hgEsc(n)}"${n === actual ? ' selected' : ''}>${hgEsc(n)}</option>`).join('');
+    }
+
     async function abrirHistorialGeneral() {
       hgMsg('');
+      hgPoblarCategorias();
       document.getElementById('overlay-historial').classList.add('active');
       await Promise.all([cargarHistorialGeneral(), hgCargarAjustes()]);
     }
@@ -2584,7 +2603,7 @@
           cont.innerHTML = '<p style="padding:1rem;color:var(--txt-2);font-size:.85rem">No hay movimientos con esos filtros.</p>';
         } else {
           cont.innerHTML = `<table>
-            <thead><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th>Cantidad</th><th>Detalle</th><th>Operario</th><th>Proveedor / Cliente</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Producto</th><th>Categoría</th><th>Cantidad</th><th>Detalle</th><th>Operario</th><th>Proveedor / Cliente</th></tr></thead>
             <tbody>${movs.map(m => {
               const cant = Number(m.cantidad) || 0;
               const cantTxt = cant > 0 ? (m.tipo==='suma' ? `+${cant}` : (m.tipo==='resta'||m.tipo==='eliminacion') ? `−${cant}` : `${cant}`) + ' uds' : '—';
@@ -2596,7 +2615,8 @@
               return `<tr>
                 <td class="td-mono">${hgEsc(m.fecha)}</td>
                 <td class="tag-${hgEsc(m.tipo)}">${etiquetas[m.tipo] || hgEsc(m.tipo)}</td>
-                <td>${hgEsc(m.equipo) || '—'}${m.serie ? ` <span class="td-mono">(${hgEsc(m.serie)})</span>` : ''}${Number(m.eliminado) ? '<span class="hg-badge">ELIMINADO</span>' : ''}</td>
+                <td${m.notas ? ` title="${hgEsc(m.notas)}"` : ''}>${hgEsc(m.equipo) || '—'}${m.serie ? ` <span class="td-mono">(${hgEsc(m.serie)})</span>` : ''}${Number(m.eliminado) ? '<span class="hg-badge">ELIMINADO</span>' : ''}</td>
+                <td>${hgEsc(m.categoria) || '—'}</td>
                 <td class="td-mono">${cantTxt}</td>
                 <td class="td-mono">${detalle}</td>
                 <td>${hgEsc(m.empleado) || '—'}</td>

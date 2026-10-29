@@ -79,12 +79,24 @@ function historialMeses(PDO $pdo): int {
     } catch (Throwable $e) { return 0; }
 }
 
-// ── Copia del nombre y la serie del equipo ───────────────────
+// ── Copia del nombre, serie, categoría y notas del equipo ────
+// Devuelve [nombre, serie, categoría, notas]
 function historialInstantanea(PDO $pdo, int $equipoId): array {
-    $st = $pdo->prepare("SELECT nombre, numero_serie FROM equipos WHERE id = ?");
+    $st = $pdo->prepare("
+        SELECT e.nombre, e.numero_serie, cat.nombre AS categoria,
+               COALESCE(
+                   NULLIF((SELECT GROUP_CONCAT(i.notas SEPARATOR ' | ')
+                           FROM   equipo_estado_info i
+                           WHERE  i.equipo_id = e.id AND i.notas IS NOT NULL AND i.notas <> ''), ''),
+                   e.notas
+               ) AS notas
+        FROM   equipos e
+        LEFT JOIN categorias cat ON cat.id = e.categoria_id
+        WHERE  e.id = ?
+    ");
     $st->execute([$equipoId]);
     $r = $st->fetch();
-    return [$r['nombre'] ?? null, $r['numero_serie'] ?? null];
+    return [$r['nombre'] ?? null, $r['numero_serie'] ?? null, $r['categoria'] ?? null, $r['notas'] ?? null];
 }
 
 // ── Consulta común (JSON, CSV de descarga y fichero del servidor) ──
@@ -93,6 +105,8 @@ function historialSqlBase(): string {
         SELECT m.id, m.fecha, m.tipo, m.cantidad, m.equipo_id,
                COALESCE(m.equipo_nombre, e.nombre)       AS equipo,
                COALESCE(m.equipo_serie,  e.numero_serie) AS serie,
+               COALESCE(cat.nombre, m.equipo_categoria)  AS categoria,
+               m.equipo_notas                            AS notas,
                (m.equipo_id IS NULL)                     AS eliminado,
                emp.nombre AS empleado,
                c.nombre   AS cliente,
@@ -101,6 +115,7 @@ function historialSqlBase(): string {
                CONCAT(u.calle,'-',u.lado,'-',u.hueco,'-',u.altura)     AS ubicacion_nueva
         FROM   movimientos m
         LEFT JOIN equipos     e   ON e.id   = m.equipo_id
+        LEFT JOIN categorias  cat ON cat.id = e.categoria_id
         LEFT JOIN empleados   emp ON emp.id = m.empleado_id
         LEFT JOIN clientes    c   ON c.id   = m.cliente_id
         LEFT JOIN proveedores p   ON p.id   = m.proveedor_id

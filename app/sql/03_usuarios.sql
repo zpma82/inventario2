@@ -6,12 +6,13 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- Ejecutar con: mysql -u root -p < sql/03_usuarios.sql
 --
 -- Arquitectura:
---   1. Se crean 4 ROLES con sus privilegios sobre inventario2
+--   1. Se crean 5 ROLES con sus privilegios sobre inventario2
 --   2. Se crean los usuarios MySQL (operarios) y se les asigna un rol
 --   3. activate_all_roles_on_login = ON para que los roles se activen al conectar
 --
 -- Roles:
 --   rol_admin    → ALL PRIVILEGES + GRANT OPTION
+--   rol_responsable_it → igual que rol_tecnico (Responsable IT; ampliable si hace falta)
 --   rol_tecnico  → CREATE, ALTER, DROP, SELECT, INSERT, UPDATE, DELETE
 --   rol_usuario  → SELECT, INSERT, UPDATE, DELETE
 --   rol_invitado → SELECT
@@ -23,9 +24,10 @@ USE inventario2;
 SET PERSIST activate_all_roles_on_login = ON;
 
 -- ────────────────────────────────────────────────────────────
--- PASO 1 — Crear los 4 roles
+-- PASO 1 — Crear los 5 roles
 -- ────────────────────────────────────────────────────────────
 CREATE ROLE IF NOT EXISTS 'rol_admin';
+CREATE ROLE IF NOT EXISTS 'rol_responsable_it';
 CREATE ROLE IF NOT EXISTS 'rol_tecnico';
 CREATE ROLE IF NOT EXISTS 'rol_usuario';
 CREATE ROLE IF NOT EXISTS 'rol_invitado';
@@ -40,6 +42,12 @@ GRANT CREATE, ALTER, DROP,
       SELECT, INSERT, UPDATE, DELETE
   ON inventario2.*
   TO 'rol_tecnico';
+
+-- Responsable IT: mismos privilegios que el técnico (cambiar aquí si debe tener más o menos)
+GRANT CREATE, ALTER, DROP,
+      SELECT, INSERT, UPDATE, DELETE
+  ON inventario2.*
+  TO 'rol_responsable_it';
 
 -- Usuario operario: solo operaciones CRUD sobre datos
 GRANT SELECT, INSERT, UPDATE, DELETE
@@ -78,10 +86,10 @@ CREATE USER IF NOT EXISTS 'carlos'@'localhost' IDENTIFIED BY '1234';
 GRANT 'rol_tecnico' TO 'carlos'@'localhost';
 SET DEFAULT ROLE 'rol_tecnico' TO 'carlos'@'localhost';
 
--- Laura Martínez → rol_tecnico
+-- Laura Martínez (Responsable IT) → rol_responsable_it
 CREATE USER IF NOT EXISTS 'laura'@'localhost' IDENTIFIED BY '1234';
-GRANT 'rol_tecnico' TO 'laura'@'localhost';
-SET DEFAULT ROLE 'rol_tecnico' TO 'laura'@'localhost';
+GRANT 'rol_responsable_it' TO 'laura'@'localhost';
+SET DEFAULT ROLE 'rol_responsable_it' TO 'laura'@'localhost';
 
 -- Pedro Sánchez → rol_usuario
 CREATE USER IF NOT EXISTS 'pedro'@'localhost' IDENTIFIED BY '1234';
@@ -105,6 +113,6 @@ FROM mysql.user u
 LEFT JOIN information_schema.APPLICABLE_ROLES r
   ON r.GRANTEE = CONCAT("'", u.user, "'@'", u.host, "'")
 WHERE u.user IN ('almacen_local','carlos','laura','pedro','ana',
-                 'rol_admin','rol_tecnico','rol_usuario','rol_invitado')
+                 'rol_admin','rol_responsable_it','rol_tecnico','rol_usuario','rol_invitado')
 GROUP BY u.user, u.host
 ORDER BY u.user, u.host;

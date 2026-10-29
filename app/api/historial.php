@@ -2,7 +2,7 @@
 // =============================================================
 // INVENTARIO TALLER -- Historial general de movimientos
 // GET  historial.php                    → JSON con filtros
-//        ?q=texto &tipo=suma|resta|ubicacion|separacion|eliminacion
+//        ?q=texto &categoria=nombre &notas=texto &tipo=suma|resta|ubicacion|separacion|eliminacion
 //        &solo_eliminados=1 &desde=YYYY-MM-DD &hasta=YYYY-MM-DD &limite=N
 // GET  historial.php?formato=csv        → descarga CSV de la consulta filtrada
 // GET  historial.php?accion=fichero     → descarga el CSV permanente del servidor
@@ -29,6 +29,14 @@ function historialFiltros(): array {
     $tipo = (string)($_GET['tipo'] ?? '');
     if (in_array($tipo, ['suma', 'resta', 'ubicacion', 'separacion', 'eliminacion'], true)) {
         $w[] = 'm.tipo = ?'; $p[] = $tipo;
+    }
+    $cat = trim((string)($_GET['categoria'] ?? ''));
+    if ($cat !== '') { $w[] = 'COALESCE(cat.nombre, m.equipo_categoria) = ?'; $p[] = $cat; }
+    $notas = trim((string)($_GET['notas'] ?? ''));
+    if ($notas !== '') {
+        $w[] = "(m.equipo_notas LIKE ? OR e.notas LIKE ?
+                 OR EXISTS (SELECT 1 FROM equipo_estado_info i WHERE i.equipo_id = m.equipo_id AND i.notas LIKE ?))";
+        $p[] = "%$notas%"; $p[] = "%$notas%"; $p[] = "%$notas%";
     }
     if (($_GET['solo_eliminados'] ?? '') === '1') $w[] = 'm.equipo_id IS NULL';
     $desde = (string)($_GET['desde'] ?? '');
