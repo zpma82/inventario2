@@ -41,6 +41,8 @@
     .login-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
     .btn-login { width: 100%; padding: .75rem; background: var(--accent); color: #fff; border: none; border-radius: var(--r); font-family: var(--sans); font-size: .95rem; font-weight: 700; cursor: pointer; transition: background .15s, transform .1s; margin-top: .25rem; }
     .btn-login:hover { background: #1d4ed8; } .btn-login:active { transform: scale(.98); }
+    .login-field select { padding: .65rem .85rem; border: 1.5px solid var(--border); border-radius: var(--r); font-family: var(--sans); font-size: .9rem; outline: none; background: #fff; color: var(--txt); }
+    .login-field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
     .login-error { background: var(--danger-lt); border: 1px solid #fca5a5; border-radius: var(--r); padding: .6rem .85rem; color: var(--danger); font-size: .85rem; margin-bottom: .85rem; display: none; }
     .login-error.visible { display: block; }
     .login-hint { font-size: .75rem; color: var(--txt-3); text-align: center; margin-top: 1.1rem; }
@@ -66,6 +68,12 @@
     .rol-invitado { background: #f1f5f9; color: var(--txt-2); }
 
     /* ── Banner error ── */
+    .almacen-switch { display: flex; align-items: center; gap: .5rem; font-size: .82rem; color: var(--txt-2); }
+    .almacen-switch select { font-family: var(--sans); font-size: .85rem; font-weight: 700; padding: .35rem .7rem; border: 1.5px solid var(--accent); border-radius: var(--r); background: var(--accent-lt); color: var(--accent); cursor: pointer; }
+    .almacen-switch select:disabled { cursor: not-allowed; opacity: .75; }
+    .almacen-switch.otro select { border-color: #d97706; background: #fef3c7; color: #92400e; }
+    .banner-lectura { display: none; margin: 1rem 2rem 0; padding: .6rem 1rem; background: #fef3c7; border: 1px solid #fcd34d; border-radius: var(--r); color: #92400e; font-size: .85rem; }
+    .banner-lectura.visible { display: block; }
     .api-banner { display: none; margin: 1rem 2rem 0; padding: .7rem 1rem; background: var(--danger-lt); border: 1px solid #fca5a5; border-radius: var(--r); color: var(--danger); font-size: .85rem; }
     .api-banner.visible { display: flex; align-items: center; gap: .5rem; }
 
@@ -300,6 +308,10 @@
       </div>
       <div id="login-error" class="login-error"></div>
       <div class="login-field">
+        <label>Almacén</label>
+        <select id="login-almacen"><option value="">Cargando almacenes…</option></select>
+      </div>
+      <div class="login-field">
         <label>Usuario</label>
         <input type="text" id="login-user" placeholder="admin" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()" />
       </div>
@@ -320,6 +332,10 @@
     <div class="brand">
       <div class="brand-icon">💻</div>
       <div><h1>Inventario Taller</h1><p>Gestión de equipos del taller</p></div>
+    </div>
+    <div class="almacen-switch" id="almacen-switch">
+      <label for="sel-almacen">🏭 Almacén</label>
+      <select id="sel-almacen" onchange="cambiarAlmacenVista(this.value)" title="Almacén en el que estás trabajando"></select>
     </div>
     <div class="header-right">
       <span id="fecha-header"></span>
@@ -376,6 +392,7 @@
   <div id="main-content">
 
   <div class="api-banner" id="api-banner">⚠️ <span id="api-banner-msg"></span></div>
+  <div class="banner-lectura" id="banner-lectura"></div>
 
   <!-- ESTADÍSTICAS -->
   <section class="stats">
@@ -609,7 +626,7 @@
   <div class="overlay" id="overlay-ubicaciones" onclick="cerrarSiOverlay(event,'overlay-ubicaciones')">
     <div class="modal" style="max-width:860px;width:96vw">
       <div class="modal-header">
-        <h2>📍 Gestión de ubicaciones</h2>
+        <h2>📍 Gestión de ubicaciones <span id="ubic-almacen-info" style="margin-left:.5rem;font-size:.75rem;font-weight:700;font-family:var(--mono);color:var(--accent);background:var(--accent-lt);padding:.15rem .55rem;border-radius:5px;vertical-align:middle" title="Almacén en el que estás trabajando (solo informativo)"></span></h2>
         <button class="btn-close" onclick="cerrarModal('overlay-ubicaciones')">✕</button>
       </div>
 
@@ -901,7 +918,12 @@
     let sepLineas   = [];
 
     // ── Sesión ───────────────────────────────
-    let sesion = null; // { token, usuario, nombre, rol }
+    let sesion = null; // { token, usuario, nombre, rol, almacen_id, almacen }
+    let almacenes    = [];   // [{id, codigo, nombre}]
+    let almacenVista = null; // id del almacén que se está mirando (por defecto, el de la sesión)
+
+    const esSoloLectura  = () => !!sesion && almacenVista !== null && Number(almacenVista) !== Number(sesion.almacen_id);
+    const codigoAlmacen  = id => (almacenes.find(a => Number(a.id) === Number(id)) || {}).codigo || '';
 
     function getToken() { return localStorage.getItem('inv_token'); }
     function setToken(t) { localStorage.setItem('inv_token', t); }
@@ -919,7 +941,10 @@
     // ── Fetch helpers ─────────────────────────
     function authHeaders() {
       const t = getToken();
-      return t ? { 'Content-Type':'application/json; charset=utf-8', 'Authorization':`Bearer ${t}` } : { 'Content-Type':'application/json; charset=utf-8' };
+      const h = { 'Content-Type':'application/json; charset=utf-8' };
+      if (t) h['Authorization'] = `Bearer ${t}`;
+      if (t && almacenVista !== null) h['X-Almacen'] = String(almacenVista);
+      return h;
     }
     async function apiGet(ep) {
       const r = await fetch(`${BASE_URL}/${ep}`, { headers: authHeaders() });
@@ -950,6 +975,8 @@
       const pass = document.getElementById('login-pass').value;
       const errEl = document.getElementById('login-error');
       errEl.classList.remove('visible');
+      const almSel = document.getElementById('login-almacen').value;
+      if (!almSel) { errEl.textContent='Elige el almacén en el que vas a trabajar.'; errEl.classList.add('visible'); return; }
       if (!user || !pass) { errEl.textContent='Introduce usuario y contraseña.'; errEl.classList.add('visible'); return; }
       try {
         const btn = document.querySelector('.btn-login');
@@ -957,12 +984,14 @@
         const res = await fetch(`${BASE_URL}/auth.php`, {
           method: 'POST',
           headers: { 'Content-Type':'application/json' },
-          body: JSON.stringify({ accion:'login', usuario: user, password: pass })
+          body: JSON.stringify({ accion:'login', usuario: user, password: pass, almacen_id: Number(almSel) })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Error de autenticación');
         setToken(data.token);
+        try { localStorage.setItem('inv_almacen_login', String(data.almacen_id)); } catch {}
         sesion = data;
+        almacenVista = data.almacen_id;
         mostrarApp();
         await cargarTodo();
       } catch(e) {
@@ -984,8 +1013,44 @@
       const rb = document.getElementById('user-rol-badge');
       rb.textContent  = sesion.rol;
       rb.className    = `rol-badge rol-${sesion.rol}`;
+      // Desplegable de almacén del header
+      poblarSelectorAlmacen();
       // Permisos UI
       aplicarPermisosUI();
+    }
+
+    // Login: carga la lista de almacenes antes de tener sesión
+    async function cargarAlmacenesLogin() {
+      const sel = document.getElementById('login-almacen');
+      try {
+        const r = await fetch(`${BASE_URL}/almacenes.php`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        almacenes = await r.json();
+        let ultimo = ''; try { ultimo = localStorage.getItem('inv_almacen_login') || ''; } catch {}
+        sel.innerHTML = almacenes.map(a => `<option value="${a.id}"${String(a.id)===ultimo?' selected':''}>${a.codigo} — ${a.nombre}</option>`).join('');
+      } catch(e) {
+        sel.innerHTML = '<option value="">No se pudieron cargar los almacenes</option>';
+      }
+    }
+
+    // Header: almacén en el que se trabaja. El admin no puede cambiarlo.
+    function poblarSelectorAlmacen() {
+      const sel = document.getElementById('sel-almacen');
+      if (!sel || !sesion) return;
+      sel.innerHTML = almacenes.map(a => `<option value="${a.id}">${a.codigo}</option>`).join('');
+      sel.value = String(almacenVista ?? sesion.almacen_id);
+      sel.disabled = sesion.rol === 'admin';
+      sel.title = sel.disabled
+        ? 'El administrador trabaja siempre en el almacén en el que ha iniciado sesión'
+        : 'Almacén en el que estás trabajando. Puedes consultar el otro almacén (solo lectura).';
+    }
+
+    async function cambiarAlmacenVista(id) {
+      if (!sesion || sesion.rol === 'admin') { poblarSelectorAlmacen(); return; }
+      almacenVista = Number(id);
+      ['fu-calle','fu-lado','fu-hueco','fu-altura'].forEach(i => { const el = document.getElementById(i); if (el) el.value = ''; });
+      aplicarPermisosUI();
+      await cargarTodo();
     }
 
     function aplicarPermisosUI() {
@@ -994,9 +1059,19 @@
       const puedeCrear    = ['admin','tecnico','usuario'].includes(rol);
       const puedeStock    = ['admin','tecnico','usuario'].includes(rol);
       const esAdmin       = rol === 'admin';
+      const lectura       = esSoloLectura();
+      // Aviso y estilo del desplegable cuando se consulta otro almacén
+      const ban = document.getElementById('banner-lectura');
+      if (ban) {
+        ban.classList.toggle('visible', lectura);
+        ban.textContent = lectura
+          ? `👁️ Estás consultando el almacén ${codigoAlmacen(almacenVista)} (solo lectura). Tu almacén de trabajo es ${codigoAlmacen(sesion.almacen_id)}.`
+          : '';
+      }
+      document.getElementById('almacen-switch')?.classList.toggle('otro', lectura);
       // Botón añadir equipo
       const btnNew = document.getElementById('btn-nuevo-equipo');
-      if (btnNew) btnNew.style.display = puedeCrear ? '' : 'none';
+      if (btnNew) btnNew.style.display = (puedeCrear && !lectura) ? '' : 'none';
       // Botón usuarios
       const btnU = document.getElementById('btn-usuarios');
       if (btnU) btnU.style.display = esAdmin ? '' : 'none';
@@ -1009,7 +1084,7 @@
       // Botones nueva categoría / subcategoría (solo admin y tecnico)
       ['btn-nueva-cat','btn-nueva-subcat'].forEach(bid => {
         const b = document.getElementById(bid);
-        if (b) b.style.display = puedeEditar ? '' : 'none';
+        if (b) b.style.display = (puedeEditar && !lectura) ? '' : 'none';
       });
     }
 
@@ -1019,6 +1094,8 @@
       }
       clearToken();
       sesion = null;
+      almacenVista = null;
+      cargarAlmacenesLogin();
       document.getElementById('login-screen').classList.remove('hidden');
       document.getElementById('app').classList.remove('visible');
       document.getElementById('login-pass').value = '';
@@ -1033,6 +1110,11 @@
         const data = await r.json();
         if (!data.valido) { clearToken(); return false; }
         sesion = { token, ...data };
+        if (!almacenes.length) {
+          const ra = await fetch(`${BASE_URL}/almacenes.php`);
+          if (ra.ok) almacenes = await ra.json();
+        }
+        almacenVista = sesion.almacen_id;
         return true;
       } catch { clearToken(); return false; }
     }
@@ -1481,8 +1563,9 @@
       });
 
       const rol = sesion?.rol || 'invitado';
-      const puedeEditar = ['admin','tecnico'].includes(rol);
-      const puedeStock  = ['admin','tecnico','usuario'].includes(rol);
+      const lectura     = esSoloLectura();
+      const puedeEditar = ['admin','tecnico'].includes(rol) && !lectura;
+      const puedeStock  = ['admin','tecnico','usuario'].includes(rol) && !lectura;
 
       const tbody = document.getElementById('tbody');
       if (!datos.length) {
@@ -1605,7 +1688,7 @@
 
     // ── Modal EQUIPO ──────────────────────────
     function abrirModalEquipo() {
-      if (!['admin','tecnico','usuario'].includes(sesion?.rol)) return;
+      if (!['admin','tecnico','usuario'].includes(sesion?.rol) || esSoloLectura()) return;
       editId=null; editFilaEstado=null;
       document.getElementById('equipo-titulo').textContent='Nuevo equipo';
       ['f-nombre','f-sn','f-notas','f-especificaciones'].forEach(id=>document.getElementById(id).value='');
@@ -1626,7 +1709,7 @@
       document.getElementById('overlay-equipo').classList.add('active');
     }
     async function editarEquipo(filaId) {
-      if (!['admin','tecnico'].includes(sesion?.rol)) return;
+      if (!['admin','tecnico'].includes(sesion?.rol) || esSoloLectura()) return;
       // Buscar en el array local para obtener el id real
       const fila = inventario.find(x => String(x.fila_id) === String(filaId))
                 || inventario.find(x => x.id == filaId);
@@ -1704,7 +1787,7 @@
       }
     }
     async function eliminar(id) {
-      if (!['admin','tecnico'].includes(sesion?.rol)) return;
+      if (!['admin','tecnico'].includes(sesion?.rol) || esSoloLectura()) return;
       const e=inventario.find(x=>x.id==id);
       if(!confirm(`¿Eliminar "${e?.nombre}"?`)) return;
       try{await apiDelete('equipos.php',id);await cargarTodo();}
@@ -1735,6 +1818,7 @@
 
     // ── Modal MOVIMIENTO ──────────────────────
     function abrirMover(id, filaEstado) {
+      if (esSoloLectura()) return;
       moveId    = id;
       moveEstado = filaEstado || 'Activo';
       moveType  = 'suma';
@@ -1929,6 +2013,8 @@
 
     // ── Modal UBICACIONES ─────────────────────
     async function abrirModalUbicaciones() {
+      // Almacén en el que se está trabajando (el del desplegable): solo informativo
+      document.getElementById('ubic-almacen-info').textContent = `🏭 ${codigoAlmacen(almacenVista ?? sesion?.almacen_id)}`;
       document.getElementById('overlay-ubicaciones').classList.add('active');
       await refrescarListaUbicaciones();
       // Si hay un filtro de ubicación activo, sincronizar el selector de calle del plano
@@ -1995,6 +2081,7 @@
     }
 
     async function crearUbicacion() {
+      if (esSoloLectura()) { alert(`Estás consultando el almacén ${codigoAlmacen(almacenVista)}. Vuelve a ${codigoAlmacen(sesion.almacen_id)} para crear ubicaciones.`); return; }
       const calle  = document.getElementById('nu-calle').value,
             lado   = document.getElementById('nu-lado').value,
             hueco  = document.getElementById('nu-hueco').value,
@@ -2679,6 +2766,8 @@
       if (valida) {
         mostrarApp();
         await cargarTodo();
+      } else {
+        await cargarAlmacenesLogin();
       }
       // Si no hay sesión, se muestra el login (estado por defecto)
     })();

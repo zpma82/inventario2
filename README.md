@@ -48,6 +48,9 @@ sudo docker compose up -d --build
 
 > `app_data` guarda los ficheros de la aplicación y solo se rellena la primera vez, por eso hay que borrarlo para que la imagen nueva se aplique. **No** borres `inventario2_db_data` ni uses `down -v`: destruiría la base de datos.
 
+> **Varios almacenes (migración 15).** Si vienes de una versión anterior, aplica la migración **antes** de desplegar el código nuevo (los datos actuales pasan a ZAZ; BCN empieza vacío):
+> `sudo docker exec -i inventario2_db mysql -uroot -p'<contraseña root>' inventario2 < app/sql/15_almacenes.sql`
+
 > Los scripts SQL solo se ejecutan cuando la base de datos está vacía. Si una actualización trae un `.sql` nuevo, aplícalo a mano:
 > `sudo docker exec -i inventario2_db mysql -uroot -p'<contraseña root>' inventario2 < app/sql/NN_nombre.sql`
 

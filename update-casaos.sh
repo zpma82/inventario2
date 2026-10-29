@@ -18,6 +18,8 @@ if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
     docker cp "$REPO/app/api/catalogos.php"    "$CONTAINER:/var/www/html/api/catalogos.php"
     docker cp "$REPO/app/api/historial.php"     "$CONTAINER:/var/www/html/api/historial.php"
     docker cp "$REPO/app/api/historial_lib.php" "$CONTAINER:/var/www/html/api/historial_lib.php"
+    docker cp "$REPO/app/api/almacen_lib.php"   "$CONTAINER:/var/www/html/api/almacen_lib.php"
+    docker cp "$REPO/app/api/almacenes.php"     "$CONTAINER:/var/www/html/api/almacenes.php"
     docker cp "$REPO/app/api/.htaccess"        "$CONTAINER:/var/www/html/api/.htaccess"
     docker cp "$REPO/app/index.html"           "$CONTAINER:/var/www/html/index.html"
     docker cp "$REPO/app/img-ies.png"          "$CONTAINER:/var/www/html/img-ies.png"
@@ -31,7 +33,7 @@ fi
 
 echo ""
 echo "▶ Verificando sintaxis PHP..."
-for f in auth.php equipos.php movimientos.php historial.php historial_lib.php; do
+for f in auth.php equipos.php movimientos.php ubicaciones.php historial.php historial_lib.php almacen_lib.php almacenes.php; do
     if docker exec "$CONTAINER" php -l "/var/www/html/api/$f" 2>&1 | grep -q "No syntax errors"; then
         echo "   ✅ $f OK"
     else

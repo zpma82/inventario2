@@ -8,9 +8,11 @@
 // =============================================================
 require_once 'config.php';
 require_once __DIR__ . '/historial_lib.php';
+require_once __DIR__ . '/almacen_lib.php';
 
 $pdo    = getPDO();
 $method = $_SERVER['REQUEST_METHOD'];
+$ses    = almacenSesion($pdo);
 
 if ($method === 'GET') {
     $equipo_id = isset($_GET['equipo_id']) ? (int)$_GET['equipo_id'] : null;
@@ -29,11 +31,13 @@ if ($method === 'GET') {
         LEFT JOIN ubicaciones uo ON uo.id = m.ubicacion_origen_id
         LEFT JOIN ubicaciones u  ON u.id  = m.ubicacion_id
     ";
+    $almL = almacenLectura($pdo, $ses);
     if ($equipo_id) {
-        $stmt = $pdo->prepare($sql . " WHERE m.equipo_id = ? ORDER BY m.fecha DESC");
-        $stmt->execute([$equipo_id]);
+        $stmt = $pdo->prepare($sql . " WHERE m.almacen_id = ? AND m.equipo_id = ? ORDER BY m.fecha DESC");
+        $stmt->execute([$almL, $equipo_id]);
     } else {
-        $stmt = $pdo->query($sql . " ORDER BY m.fecha DESC LIMIT 200");
+        $stmt = $pdo->prepare($sql . " WHERE m.almacen_id = ? ORDER BY m.fecha DESC LIMIT 200");
+        $stmt->execute([$almL]);
     }
     responder($stmt->fetchAll());
 
@@ -45,6 +49,14 @@ if ($method === 'GET') {
     if (!$equipo_id) {
         responder(['error' => 'equipo_id requerido'], 400);
     }
+
+    // Solo se mueve stock del almacén de la sesión y con ubicaciones de ese mismo almacén
+    $alm = almacenEscritura($ses);
+    almacenExigirEquipo($pdo, $equipo_id, $alm);
+    $idsUb = [];
+    foreach (($d['lineas'] ?? []) as $l) { $idsUb[] = $l['id'] ?? 0; }
+    if (!empty($d['ubicacion_id'])) $idsUb[] = $d['ubicacion_id'];
+    almacenExigirUbicaciones($pdo, $idsUb, $alm);
 
     // Copia del nombre y la serie: el historial se conserva aunque el equipo se elimine
     [$eqNombre, $eqSerie, $eqCat, $eqNotas] = historialInstantanea($pdo, $equipo_id);
@@ -158,18 +170,18 @@ if ($method === 'GET') {
             // Historial: una fila por cada línea que cambia de ubicación,
             // con su cantidad (las unidades que se quedan en el origen no se registran)
             $stmtHist = $pdo->prepare("
-                INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, equipo_categoria, equipo_notas, empleado_id, tipo, cantidad, ubicacion_origen_id, ubicacion_id)
-                VALUES (?, ?, ?, ?, ?, ?, 'separacion', ?, ?, ?)
+                INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, equipo_categoria, equipo_notas, empleado_id, tipo, cantidad, ubicacion_origen_id, ubicacion_id, almacen_id)
+                VALUES (?, ?, ?, ?, ?, ?, 'separacion', ?, ?, ?, ?)
             ");
             $movIds = [];
             foreach ($lineasNorm as $ln) {
                 if ($ubicOrigenSep !== null && (int)$ln['uid'] === (int)$ubicOrigenSep) continue;
-                $stmtHist->execute([$equipo_id, $eqNombre, $eqSerie, $eqCat, $eqNotas, $d['empleado_id'] ?? null, $ln['cant'], $ubicOrigenSep, $ln['uid']]);
+                $stmtHist->execute([$equipo_id, $eqNombre, $eqSerie, $eqCat, $eqNotas, $d['empleado_id'] ?? null, $ln['cant'], $ubicOrigenSep, $ln['uid'], $alm]);
                 $movIds[] = (int)$pdo->lastInsertId();
             }
             // Si ninguna línea cambió de ubicación (p. ej. solo cambió el estado), dejar constancia igualmente
             if (!$movIds && !empty($lineasNorm)) {
-                $stmtHist->execute([$equipo_id, $eqNombre, $eqSerie, $eqCat, $eqNotas, $d['empleado_id'] ?? null, array_sum(array_column($lineasNorm, 'cant')), $ubicOrigenSep, $lineasNorm[0]['uid']]);
+                $stmtHist->execute([$equipo_id, $eqNombre, $eqSerie, $eqCat, $eqNotas, $d['empleado_id'] ?? null, array_sum(array_column($lineasNorm, 'cant')), $ubicOrigenSep, $lineasNorm[0]['uid'], $alm]);
                 $movIds[] = (int)$pdo->lastInsertId();
             }
 
@@ -339,8 +351,8 @@ if ($method === 'GET') {
         }
 
         $pdo->prepare("
-            INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, equipo_categoria, equipo_notas, empleado_id, tipo, cantidad, cliente_id, proveedor_id, ubicacion_origen_id, ubicacion_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, equipo_categoria, equipo_notas, empleado_id, tipo, cantidad, cliente_id, proveedor_id, ubicacion_origen_id, ubicacion_id, almacen_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ")->execute([
             $equipo_id,
             $eqNombre,
@@ -354,6 +366,7 @@ if ($method === 'GET') {
             $d['proveedor_id'] ?? null,
             $ubicacionOrigenId,
             $d['ubicacion_id'] ?? null,
+            $alm,
         ]);
         $movId = (int)$pdo->lastInsertId();
 

@@ -7,16 +7,19 @@
 // =============================================================
 require_once 'config.php';
 require_once __DIR__ . '/historial_lib.php';
+require_once __DIR__ . '/almacen_lib.php';
 
 $pdo    = getPDO();
 $method = $_SERVER['REQUEST_METHOD'];
 $id     = isset($_GET['id']) ? (int)$_GET['id'] : null;
+$ses    = almacenSesion($pdo);
 
+// Lectura: almacén consultado. Escritura: siempre el almacén de la sesión.
 match ($method) {
-    'GET'    => $id ? getUno($pdo, $id) : getTodos($pdo),
-    'POST'   => crear($pdo),
-    'PUT'    => actualizar($pdo, $id),
-    'DELETE' => eliminar($pdo, $id),
+    'GET'    => $id ? getUno($pdo, $id, almacenLectura($pdo, $ses)) : getTodos($pdo, almacenLectura($pdo, $ses)),
+    'POST'   => crear($pdo, almacenEscritura($ses)),
+    'PUT'    => actualizar($pdo, $id, almacenEscritura($ses)),
+    'DELETE' => eliminar($pdo, $id, almacenEscritura($ses)),
     default  => responder(['error' => 'Método no permitido'], 405),
 };
 
@@ -25,11 +28,11 @@ match ($method) {
 // por cada estado distinto que tenga en equipo_ubicaciones.
 // Si no tiene líneas, genera una única fila sin ubicación.
 // -------------------------------------------------------------
-function getTodos(PDO $pdo): void {
+function getTodos(PDO $pdo, int $alm): void {
     // Detectar si columna empleado_id existe (puede faltar en instalaciones antiguas)
     try { $pdo->query("SELECT empleado_id FROM equipos LIMIT 1"); $joinEmp = "LEFT JOIN empleados em ON em.id = e.empleado_id"; $colEmp = ", em.nombre AS empleado_nombre"; }
     catch (Exception $ex) { $joinEmp = ""; $colEmp = ", NULL AS empleado_nombre"; }
-    $equipos = $pdo->query("
+    $stEq = $pdo->prepare("
         SELECT e.*, c.nombre AS categoria, sc.nombre AS subcategoria,
                p.nombre AS proveedor_nombre $colEmp
         FROM   equipos e
@@ -37,11 +40,14 @@ function getTodos(PDO $pdo): void {
         LEFT JOIN subcategorias sc ON sc.id = e.subcategoria_id
         LEFT JOIN proveedores   p  ON p.id  = e.proveedor_id
         $joinEmp
+        WHERE  e.almacen_id = ?
         ORDER  BY e.id DESC
-    ")->fetchAll();
+    ");
+    $stEq->execute([$alm]);
+    $equipos = $stEq->fetchAll();
 
     // Líneas de ubicación con estado
-    $ubics = $pdo->query("
+    $stUb = $pdo->prepare("
         SELECT eu.equipo_id,
                eu.ubicacion_id,
                eu.cantidad,
@@ -49,8 +55,12 @@ function getTodos(PDO $pdo): void {
                CONCAT(u.calle,'-',u.lado,'-',u.hueco,'-',u.altura) AS etiqueta
         FROM   equipo_ubicaciones eu
         JOIN   ubicaciones u ON u.id = eu.ubicacion_id
+        JOIN   equipos     q ON q.id = eu.equipo_id
+        WHERE  q.almacen_id = ?
         ORDER  BY eu.equipo_id, eu.estado, eu.id
-    ")->fetchAll();
+    ");
+    $stUb->execute([$alm]);
+    $ubics = $stUb->fetchAll();
 
     // Indexar ubicaciones por equipo_id
     $byEquipo = [];
@@ -130,7 +140,7 @@ function getTodos(PDO $pdo): void {
 }
 
 // -------------------------------------------------------------
-function getUno(PDO $pdo, int $id): void {
+function getUno(PDO $pdo, int $id, int $alm): void {
     $stmt = $pdo->prepare("
         SELECT e.*,
                c.nombre  AS categoria,
@@ -140,9 +150,9 @@ function getUno(PDO $pdo, int $id): void {
         LEFT JOIN categorias    c  ON c.id  = e.categoria_id
         LEFT JOIN subcategorias sc ON sc.id = e.subcategoria_id
         LEFT JOIN proveedores   p  ON p.id  = e.proveedor_id
-        WHERE  e.id = ?
+        WHERE  e.id = ? AND e.almacen_id = ?
     ");
-    $stmt->execute([$id]);
+    $stmt->execute([$id, $alm]);
     $row = $stmt->fetch();
     if (!$row) { responder(['error' => 'Equipo no encontrado'], 404); return; }
 
@@ -179,9 +189,10 @@ function getUno(PDO $pdo, int $id): void {
 }
 
 // -------------------------------------------------------------
-function crear(PDO $pdo): void {
+function crear(PDO $pdo, int $alm): void {
     $d = leerBody();
     if (empty($d['nombre'])) { responder(['error' => 'El nombre es obligatorio'], 400); }
+    almacenExigirUbicaciones($pdo, idsUbicacionesPeticion($d), $alm);
 
     $ubicLines = $d['ubicaciones'] ?? null;
     $ubicIdLeg = null;
@@ -195,10 +206,11 @@ function crear(PDO $pdo): void {
     try {
         $pdo->prepare("
             INSERT INTO equipos
-                (nombre,categoria_id,subcategoria_id,numero_serie,estado,ubicacion_id,cantidad,fecha_alta,notas,proveedor_id,especificaciones,empleado_id)
+                (almacen_id,nombre,categoria_id,subcategoria_id,numero_serie,estado,ubicacion_id,cantidad,fecha_alta,notas,proveedor_id,especificaciones,empleado_id)
             VALUES
-                (:nombre,:categoria_id,:subcategoria_id,:numero_serie,:estado,:ubicacion_id,:cantidad,:fecha_alta,:notas,:proveedor_id,:especificaciones,:empleado_id)
+                (:almacen_id,:nombre,:categoria_id,:subcategoria_id,:numero_serie,:estado,:ubicacion_id,:cantidad,:fecha_alta,:notas,:proveedor_id,:especificaciones,:empleado_id)
         ")->execute([
+            ':almacen_id'       => $alm,
             ':nombre'           => $d['nombre'],
             ':categoria_id'     => $d['categoria_id']     ?? null,
             ':subcategoria_id'  => $d['subcategoria_id']  ?? null,
@@ -225,9 +237,11 @@ function crear(PDO $pdo): void {
 }
 
 // -------------------------------------------------------------
-function actualizar(PDO $pdo, ?int $id): void {
+function actualizar(PDO $pdo, ?int $id, int $alm): void {
     if (!$id) responder(['error' => 'ID requerido'], 400);
     $d = leerBody();
+    almacenExigirEquipo($pdo, $id, $alm);
+    almacenExigirUbicaciones($pdo, idsUbicacionesPeticion($d), $alm);
 
     $pdo->beginTransaction();
     try {
@@ -295,8 +309,9 @@ function actualizar(PDO $pdo, ?int $id): void {
 }
 
 // -------------------------------------------------------------
-function eliminar(PDO $pdo, ?int $id): void {
+function eliminar(PDO $pdo, ?int $id, int $alm): void {
     if (!$id) responder(['error' => 'ID requerido'], 400);
+    almacenExigirEquipo($pdo, $id, $alm);
 
     $st = $pdo->prepare("SELECT nombre, numero_serie, cantidad, ubicacion_id FROM equipos WHERE id = ?");
     $st->execute([$id]);
@@ -315,9 +330,9 @@ function eliminar(PDO $pdo, ?int $id): void {
 
             $u = historialUsuarioActual($pdo);
             $pdo->prepare("
-                INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, equipo_categoria, equipo_notas, empleado_id, tipo, cantidad, ubicacion_origen_id)
-                VALUES (?, ?, ?, ?, ?, ?, 'eliminacion', ?, ?)
-            ")->execute([$id, $eq['nombre'], $eq['numero_serie'], $eqCat, $eqNotas, $u['empleado_id'] ?? null, $uds, $eq['ubicacion_id']]);
+                INSERT INTO movimientos (equipo_id, equipo_nombre, equipo_serie, equipo_categoria, equipo_notas, empleado_id, tipo, cantidad, ubicacion_origen_id, almacen_id)
+                VALUES (?, ?, ?, ?, ?, ?, 'eliminacion', ?, ?, ?)
+            ")->execute([$id, $eq['nombre'], $eq['numero_serie'], $eqCat, $eqNotas, $u['empleado_id'] ?? null, $uds, $eq['ubicacion_id'], $alm]);
             $movId = (int)$pdo->lastInsertId();
         }
         // Los movimientos se conservan: la FK es ON DELETE SET NULL
@@ -329,6 +344,15 @@ function eliminar(PDO $pdo, ?int $id): void {
     }
     if ($movId) historialCsvAnadir($pdo, [$movId]);
     responder(['mensaje' => 'Equipo eliminado']);
+}
+
+// -------------------------------------------------------------
+// IDs de ubicación que trae una petición de crear/editar equipo
+function idsUbicacionesPeticion(array $d): array {
+    $ids = [];
+    foreach (($d['ubicaciones'] ?? []) as $l) { $ids[] = $l['id'] ?? 0; }
+    if (!empty($d['ubicacion_id'])) $ids[] = $d['ubicacion_id'];
+    return $ids;
 }
 
 // -------------------------------------------------------------

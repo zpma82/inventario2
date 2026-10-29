@@ -2,7 +2,7 @@
 // =============================================================
 // INVENTARIO IT -- API de autenticación y gestión de usuarios
 //
-// POST { accion:'login',    usuario, password }          → token
+// POST { accion:'login',    usuario, password, almacen_id } → token (sesión ligada a un almacén)
 // GET  Authorization: Bearer <token>                     → sesión activa
 // POST { accion:'logout' }                               → cierra sesión
 // POST { accion:'cambiar_password', password_actual, password_nueva }
@@ -30,6 +30,9 @@ if ($method === 'GET') {
         'nombre'      => $sesion['nombre'],
         'rol'         => $sesion['rol'],
         'empleado_id' => $sesion['empleado_id'] ?? null,
+        'almacen_id'  => (int)$sesion['almacen_id'],
+        'almacen'     => $sesion['almacen_codigo'],
+        'puede_ver_otros_almacenes' => $sesion['rol'] !== 'admin',
     ]);
 }
 
@@ -54,6 +57,14 @@ if ($accion === 'login') {
     $pass = $d['password'] ?? '';
     if (!$user || !$pass) { responder(['error' => 'Usuario y contraseña requeridos'], 400); }
 
+    // Almacén en el que se identifica (si no se indica, el primero)
+    $almId = (int)($d['almacen_id'] ?? 0);
+    if ($almId <= 0) { $almId = (int)$pdo->query("SELECT MIN(id) FROM almacenes")->fetchColumn(); }
+    $stmtAlm = $pdo->prepare("SELECT id, codigo, nombre FROM almacenes WHERE id = ?");
+    $stmtAlm->execute([$almId]);
+    $alm = $stmtAlm->fetch();
+    if (!$alm) { responder(['error' => 'Almacén no válido'], 400); }
+
     $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE usuario = ? AND activo = 1");
     $stmt->execute([$user]);
     $u = $stmt->fetch();
@@ -68,8 +79,8 @@ if ($accion === 'login') {
 
     $token  = bin2hex(random_bytes(32));
     $expira = date('Y-m-d H:i:s', strtotime('+8 hours'));
-    $pdo->prepare("INSERT INTO sesiones (usuario_id, token, expira_en) VALUES (?,?,?)")
-        ->execute([$u['id'], $token, $expira]);
+    $pdo->prepare("INSERT INTO sesiones (usuario_id, token, expira_en, almacen_id) VALUES (?,?,?,?)")
+        ->execute([$u['id'], $token, $expira, $alm['id']]);
     $pdo->prepare("UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = ?")
         ->execute([$u['id']]);
 
@@ -79,6 +90,9 @@ if ($accion === 'login') {
         'nombre'      => $u['nombre'],
         'rol'         => $u['rol'],
         'empleado_id' => $u['empleado_id'] ?? null,
+        'almacen_id'  => (int)$alm['id'],
+        'almacen'     => $alm['codigo'],
+        'puede_ver_otros_almacenes' => $u['rol'] !== 'admin',
         'expira'      => $expira,
     ]);
 }
@@ -338,9 +352,11 @@ function obtenerToken(): ?string {
 
 function verificarToken(PDO $pdo, string $token): ?array {
     $stmt = $pdo->prepare("
-        SELECT s.usuario_id, u.usuario, u.nombre, u.rol, u.empleado_id
+        SELECT s.usuario_id, u.usuario, u.nombre, u.rol, u.empleado_id,
+               s.almacen_id, a.codigo AS almacen_codigo
         FROM   sesiones s
         JOIN   usuarios u ON u.id = s.usuario_id
+        JOIN   almacenes a ON a.id = s.almacen_id
         WHERE  s.token     = ?
           AND  s.expira_en > NOW()
           AND  u.activo    = 1

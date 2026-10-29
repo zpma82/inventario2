@@ -68,7 +68,7 @@ if ($method === 'GET' && $accion === 'exportar') {
         ];
 
         $tablas = [
-            'categorias', 'subcategorias', 'ubicaciones',
+            'almacenes', 'categorias', 'subcategorias', 'ubicaciones',
             'equipos', 'especificaciones', 'movimientos',
             'empleados', 'usuarios_app',
         ];
@@ -117,7 +117,7 @@ if ($method === 'POST' && $accion === 'importar') {
     $body = json_decode(file_get_contents('php://input'), true);
 
     // Tablas reconocidas -- basta con que el JSON tenga al menos una
-    $tablas_sistema  = ['equipos','categorias','subcategorias','ubicaciones','movimientos','especificaciones','empleados','usuarios_app'];
+    $tablas_sistema  = ['almacenes','equipos','categorias','subcategorias','ubicaciones','movimientos','especificaciones','empleados','usuarios_app'];
     $tablas_en_json  = array_intersect($tablas_sistema, array_keys($body ?? []));
 
     if (!$body || (empty($body['__meta']) && count($tablas_en_json) === 0)) {
@@ -139,7 +139,7 @@ if ($method === 'POST' && $accion === 'importar') {
     $modo = $body['__modo'] ?? 'merge';
 
     $tablas_importables = [
-        'categorias', 'subcategorias', 'ubicaciones',
+        'almacenes', 'categorias', 'subcategorias', 'ubicaciones',
         'equipos', 'especificaciones', 'movimientos', 'empleados',
         // usuarios_app se omite por seguridad
     ];

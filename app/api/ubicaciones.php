@@ -1,14 +1,16 @@
 <?php
 // =============================================================
 // INVENTARIO IT -- API de ubicaciones
-// GET  /api/ubicaciones.php              → lista todas las ubicaciones
+// GET  /api/ubicaciones.php              → ubicaciones del almacén (cabecera X-Almacen opcional)
 // GET  /api/ubicaciones.php?tipo=opciones → valores fijos de cada campo
 // POST /api/ubicaciones.php              → crear nueva ubicación
 // =============================================================
 require_once 'config.php';
+require_once __DIR__ . '/almacen_lib.php';
 
 $pdo    = getPDO();
 $method = $_SERVER['REQUEST_METHOD'];
+$ses    = almacenSesion($pdo);
 
 if ($method === 'GET') {
     // Devuelve los valores fijos de los 4 campos para rellenar los desplegables
@@ -21,27 +23,31 @@ if ($method === 'GET') {
         ]);
     }
 
-    // Devuelve todas las ubicaciones con la etiqueta concatenada
-    $stmt = $pdo->query("
-        SELECT id, calle, lado, hueco, altura,
+    // Devuelve las ubicaciones del almacén consultado con la etiqueta concatenada
+    $stmt = $pdo->prepare("
+        SELECT id, calle, lado, hueco, altura, almacen_id,
                CONCAT(calle,'-',lado,'-',hueco,'-',altura) AS etiqueta
         FROM   ubicaciones
+        WHERE  almacen_id = ?
         ORDER  BY calle+0, lado, hueco+0, altura
     ");
+    $stmt->execute([almacenLectura($pdo, $ses)]);
     responder($stmt->fetchAll());
 
 } elseif ($method === 'POST') {
-    $d = leerBody();
+    $d   = leerBody();
+    $alm = almacenEscritura($ses);   // solo se crean ubicaciones en el almacén de la sesión
     if (empty($d['calle']) || empty($d['lado']) || empty($d['hueco']) || empty($d['altura'])) {
         responder(['error' => 'Los 4 campos son obligatorios'], 400);
     }
 
     // INSERT IGNORE para no fallar si ya existe la combinación
     $stmt = $pdo->prepare("
-        INSERT IGNORE INTO ubicaciones (calle, lado, hueco, altura)
-        VALUES (:calle, :lado, :hueco, :altura)
+        INSERT IGNORE INTO ubicaciones (almacen_id, calle, lado, hueco, altura)
+        VALUES (:alm, :calle, :lado, :hueco, :altura)
     ");
     $stmt->execute([
+        ':alm'    => $alm,
         ':calle'  => $d['calle'],
         ':lado'   => $d['lado'],
         ':hueco'  => $d['hueco'],
@@ -51,8 +57,8 @@ if ($method === 'GET') {
     $newId = $pdo->lastInsertId();
     // Si ya existía (lastInsertId = 0), buscar su id real
     if (!$newId) {
-        $q = $pdo->prepare("SELECT id FROM ubicaciones WHERE calle=? AND lado=? AND hueco=? AND altura=?");
-        $q->execute([$d['calle'], $d['lado'], $d['hueco'], $d['altura']]);
+        $q = $pdo->prepare("SELECT id FROM ubicaciones WHERE almacen_id=? AND calle=? AND lado=? AND hueco=? AND altura=?");
+        $q->execute([$alm, $d['calle'], $d['lado'], $d['hueco'], $d['altura']]);
         $newId = $q->fetchColumn();
     }
     responder(['id' => $newId, 'mensaje' => 'Ubicación guardada'], 201);

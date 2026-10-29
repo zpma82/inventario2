@@ -24,7 +24,7 @@ function historialRutaCsv(): string { return historialDir() . '/movimientos.csv'
 
 function historialCabecera(): array {
     return ['ID movimiento', 'Fecha', 'Tipo', 'ID equipo', 'Equipo', 'Nº serie', 'Cantidad',
-            'Ubicación origen', 'Ubicación destino', 'Operario', 'Proveedor', 'Cliente'];
+            'Ubicación origen', 'Ubicación destino', 'Operario', 'Proveedor', 'Cliente', 'Almacén'];
 }
 
 function historialEtiquetaTipo(string $t): string {
@@ -60,7 +60,7 @@ function historialUsuarioActual(PDO $pdo): ?array {
     if (!$token) return null;
     try {
         $st = $pdo->prepare("
-            SELECT u.id, u.usuario, u.nombre, u.rol, u.empleado_id
+            SELECT u.id, u.usuario, u.nombre, u.rol, u.empleado_id, s.almacen_id
             FROM   sesiones s
             JOIN   usuarios u ON u.id = s.usuario_id
             WHERE  s.token = ? AND s.expira_en > NOW() AND u.activo = 1
@@ -108,6 +108,8 @@ function historialSqlBase(): string {
                COALESCE(cat.nombre, m.equipo_categoria)  AS categoria,
                m.equipo_notas                            AS notas,
                (m.equipo_id IS NULL)                     AS eliminado,
+               m.almacen_id,
+               al.codigo  AS almacen,
                emp.nombre AS empleado,
                c.nombre   AS cliente,
                p.nombre   AS proveedor,
@@ -121,6 +123,7 @@ function historialSqlBase(): string {
         LEFT JOIN proveedores p   ON p.id   = m.proveedor_id
         LEFT JOIN ubicaciones uo  ON uo.id  = m.ubicacion_origen_id
         LEFT JOIN ubicaciones u   ON u.id   = m.ubicacion_id
+        LEFT JOIN almacenes   al  ON al.id  = m.almacen_id
     ";
 }
 
@@ -138,6 +141,7 @@ function historialFilaCsv(array $r): array {
         historialCelda($r['empleado']),
         historialCelda($r['proveedor']),
         historialCelda($r['cliente']),
+        historialCelda($r['almacen'] ?? ''),
     ];
 }
 

@@ -12,15 +12,17 @@
 // =============================================================
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/historial_lib.php';
+require_once __DIR__ . '/almacen_lib.php';
 
 $pdo     = getPDO();
 $method  = $_SERVER['REQUEST_METHOD'];
 $usuario = historialUsuarioActual($pdo);
 if (!$usuario) responder(['error' => 'No autenticado'], 401);
 $esAdmin = $usuario['rol'] === 'admin';
+$usuario['almacen_id'] = (int)($usuario['almacen_id'] ?? 1);
 
-function historialFiltros(): array {
-    $w = []; $p = [];
+function historialFiltros(int $alm): array {
+    $w = ['m.almacen_id = ?']; $p = [$alm];
     $q = trim((string)($_GET['q'] ?? ''));
     if ($q !== '') {
         $w[] = "(COALESCE(m.equipo_nombre, e.nombre) LIKE ? OR COALESCE(m.equipo_serie, e.numero_serie) LIKE ?)";
@@ -46,8 +48,8 @@ function historialFiltros(): array {
     return [$w ? ' WHERE ' . implode(' AND ', $w) : '', $p];
 }
 
-function historialConsultar(PDO $pdo, int $limite): array {
-    [$where, $params] = historialFiltros();
+function historialConsultar(PDO $pdo, int $limite, int $alm): array {
+    [$where, $params] = historialFiltros($alm);
     $st = $pdo->prepare(historialSqlBase() . $where . " ORDER BY m.fecha DESC, m.id DESC LIMIT " . $limite);
     $st->execute($params);
     return $st->fetchAll();
@@ -75,7 +77,7 @@ if ($method === 'GET') {
     }
 
     if (($_GET['formato'] ?? '') === 'csv') {
-        $filas = historialConsultar($pdo, 100000);
+        $filas = historialConsultar($pdo, 100000, almacenLectura($pdo, $usuario));
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="historial_' . date('Ymd_His') . '.csv"');
         echo "\xEF\xBB\xBF";
@@ -87,7 +89,7 @@ if ($method === 'GET') {
     }
 
     $limite = min(max((int)($_GET['limite'] ?? 500), 1), 5000);
-    responder(historialConsultar($pdo, $limite));
+    responder(historialConsultar($pdo, $limite, almacenLectura($pdo, $usuario)));
 }
 
 if ($method === 'POST') {
