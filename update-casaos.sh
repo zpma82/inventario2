@@ -22,6 +22,7 @@ if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
     docker cp "$REPO/app/api/almacenes.php"     "$CONTAINER:/var/www/html/api/almacenes.php"
     docker cp "$REPO/app/api/.htaccess"        "$CONTAINER:/var/www/html/api/.htaccess"
     docker cp "$REPO/app/index.html"           "$CONTAINER:/var/www/html/index.html"
+    docker cp "$REPO/app/.htaccess"            "$CONTAINER:/var/www/html/.htaccess"
     docker cp "$REPO/app/img-ies.png"          "$CONTAINER:/var/www/html/img-ies.png"
     echo "   ✅ Ficheros copiados al contenedor"
     # Carpeta del historial CSV (si el contenedor es anterior al volumen, se crea aquí)
